@@ -1,27 +1,311 @@
-:root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: #111;
-  background: #f5f5f7;
-}
-
-* {
+*, *::before, *::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
+:root {
+  --bg:                #f0ede8;
+  --white:             #ffffff;
+  --border:            #e0dbd4;
+  --text-primary:      #1a1a18;
+  --text-secondary:    #7a7770;
+  --accent:            #1e1e1e;
+  --card-shadow:       0 1px 3px rgba(0, 0, 0, 0.07);
+  --card-hover-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
 }
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Shell ─────────────────────────────────────────────────────────────────── */
 
 .app-shell {
-  width: 100%;
-  min-height: 100%;
+  display: flex;
+  height: 100vh;
+}
+
+/* ── Left panel ────────────────────────────────────────────────────────────── */
+
+.left-panel {
+  width: 360px;
+  min-width: 300px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  background: var(--white);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.library-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 0 0 auto;
+  max-height: 52%;
+}
+
+.constructor-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.section-header {
+  padding: 11px 14px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.library-list {
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.panel-divider {
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Block cards ───────────────────────────────────────────────────────────── */
+
+.block-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  user-select: none;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.15s;
+}
+
+.library-card {
+  cursor: grab;
+}
+
+.library-card:hover {
+  box-shadow: var(--card-hover-shadow);
+}
+
+.library-card:active {
+  cursor: grabbing;
+}
+
+.block-card.is-dragging {
+  opacity: 0.45;
+}
+
+.block-card__title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.block-card__desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Floating card shown while dragging */
+.drag-overlay-card {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  transform: rotate(1.5deg) scale(1.02);
+  pointer-events: none;
+  cursor: grabbing;
+}
+
+/* ── Constructor zone ──────────────────────────────────────────────────────── */
+
+.constructor-zone {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 80px;
+
+  /* hatching — matches the sketch */
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 7px,
+    rgba(0, 0, 0, 0.028) 7px,
+    rgba(0, 0, 0, 0.028) 14px
+  );
+  transition: background-color 0.15s, outline 0.1s;
+}
+
+.constructor-zone.is-over {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 7px,
+    rgba(59, 130, 246, 0.06) 7px,
+    rgba(59, 130, 246, 0.06) 14px
+  );
+  outline: 2px dashed rgba(59, 130, 246, 0.45);
+  outline-offset: -4px;
+  border-radius: 4px;
+}
+
+.constructor-zone__empty {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+/* ── Constructor card ──────────────────────────────────────────────────────── */
+
+.constructor-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+
+.constructor-card__drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  font-size: 17px;
+  line-height: 1;
+  flex-shrink: 0;
+  touch-action: none;
+  padding: 2px 0;
+}
+
+.constructor-card__drag-handle:active {
+  cursor: grabbing;
+}
+
+.constructor-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.constructor-card__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.1s, background 0.1s;
+}
+
+.constructor-card__remove:hover {
+  color: #c53030;
+  background: #fff5f5;
+}
+
+/* ── Export bar ────────────────────────────────────────────────────────────── */
+
+.export-bar {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.export-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.export-btn:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.export-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── Preview panel ─────────────────────────────────────────────────────────── */
+
+.preview-panel {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 36px 28px;
+  background: var(--bg);
+}
+
+.preview-document {
+  background: var(--white);
+  width: 100%;
+  max-width: 620px;
+  min-height: 100%;
+  padding: 52px 60px;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+.preview-document__title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 36px;
+  color: var(--text-primary);
+}
+
+.preview-document__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.preview-document__para {
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  text-align: justify;
+}
+
+.preview-document__empty {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+  margin-top: 56px;
 }
