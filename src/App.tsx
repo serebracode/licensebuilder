@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { TEST_BLOCKS, TEST_FRAME, type LicenseBlock } from './data.test-blocks';
 
 type SetupMode = 'create' | 'useExisting';
 
@@ -38,6 +39,9 @@ const getApi = (): LicenseBuilderApi => {
   };
 };
 
+const replaceVars = (text: string, values: Record<string, string>): string =>
+  text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, name: string) => values[name] || `{{${name}}}`);
+
 const App = (): JSX.Element => {
   const api = useMemo(() => getApi(), []);
   const [mode, setMode] = useState<SetupMode>('create');
@@ -45,6 +49,11 @@ const App = (): JSX.Element => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [settings, setSettings] = useState<WorkspaceSettings>({});
+  const [selectedBlocks, setSelectedBlocks] = useState<LicenseBlock[]>([]);
+  const [variables, setVariables] = useState<Record<string, string>>({
+    company_name: '',
+    contract_date: ''
+  });
 
   const isBrowserPreview = typeof window !== 'undefined' && !window.licenseBuilder;
 
@@ -88,6 +97,119 @@ const App = (): JSX.Element => {
       setLoading(false);
     }
   };
+
+  const addBlock = (block: LicenseBlock): void => {
+    setSelectedBlocks((prev) => [...prev, block]);
+  };
+
+  const removeBlock = (index: number): void => {
+    setSelectedBlocks((prev) => prev.filter((_item, i) => i !== index));
+  };
+
+  const moveBlock = (index: number, direction: -1 | 1): void => {
+    setSelectedBlocks((prev) => {
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= prev.length) {
+        return prev;
+      }
+
+      const clone = [...prev];
+      const temp = clone[index];
+      clone[index] = clone[newIndex];
+      clone[newIndex] = temp;
+      return clone;
+    });
+  };
+
+  const requiredVariables = useMemo(() => {
+    const vars = new Set<string>(['company_name', 'contract_date']);
+    selectedBlocks.forEach((block) => block.variables.forEach((item) => vars.add(item)));
+    return [...vars];
+  }, [selectedBlocks]);
+
+  const previewText = useMemo(() => {
+    const parts = [replaceVars(TEST_FRAME.header, variables)];
+    selectedBlocks.forEach((block, i) => {
+      parts.push(`\n${i + 1}. ${block.title}\n${replaceVars(block.body, variables)}`);
+    });
+    parts.push(`\n${replaceVars(TEST_FRAME.footer, variables)}`);
+    return parts.join('\n');
+  }, [selectedBlocks, variables]);
+
+  if (settings.workspacePath) {
+    return (
+      <main className="app-shell app-builder">
+        <header className="builder-header">
+          <h1>License Builder</h1>
+          <p>{statusText}</p>
+        </header>
+
+        <section className="builder-grid">
+          <article className="column panel-column">
+            <h2>Библиотека блоков</h2>
+            {TEST_BLOCKS.map((block) => (
+              <div key={block.id} className="card">
+                <h3>{block.title}</h3>
+                <p>{block.description}</p>
+                <button type="button" onClick={() => addBlock(block)}>
+                  Добавить
+                </button>
+              </div>
+            ))}
+          </article>
+
+          <article className="column panel-column">
+            <h2>Зона сборки</h2>
+            <p className="muted">{TEST_FRAME.header}</p>
+            {selectedBlocks.length === 0 ? <p className="muted">Блоки пока не добавлены.</p> : null}
+            {selectedBlocks.map((block, index) => (
+              <div key={`${block.id}-${index}`} className="card">
+                <h3>{index + 1}. {block.title}</h3>
+                <p>{block.body}</p>
+                <div className="row-actions">
+                  <button type="button" onClick={() => moveBlock(index, -1)}>
+                    ↑
+                  </button>
+                  <button type="button" onClick={() => moveBlock(index, 1)}>
+                    ↓
+                  </button>
+                  <button type="button" onClick={() => removeBlock(index)}>
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            ))}
+            <p className="muted">{TEST_FRAME.footer}</p>
+          </article>
+
+          <article className="column panel-column">
+            <h2>Предпросмотр</h2>
+            <div className="vars-grid">
+              {requiredVariables.map((name) => (
+                <label key={name}>
+                  {name}
+                  <input
+                    value={variables[name] ?? ''}
+                    onChange={(event) =>
+                      setVariables((prev) => ({
+                        ...prev,
+                        [name]: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <pre className="preview-box">{previewText}</pre>
+            <div className="row-actions">
+              <button type="button" disabled>Экспорт .docx</button>
+              <button type="button" disabled>Экспорт .pdf</button>
+            </div>
+          </article>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
@@ -147,16 +269,6 @@ const App = (): JSX.Element => {
         </button>
 
         {error ? <p className="error">{error}</p> : null}
-
-        <p className="status">{statusText}</p>
-
-        {settings.blocksPath ? (
-          <ul className="summary-list">
-            <li>Блоки: {settings.blocksPath}</li>
-            <li>Шаблоны: {settings.templatesPath}</li>
-            <li>Экспорт: {settings.exportsPath}</li>
-          </ul>
-        ) : null}
       </section>
     </main>
   );
