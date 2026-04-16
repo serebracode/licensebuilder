@@ -90,7 +90,7 @@ const AvailableDraggable = ({ block }: { block: LicenseBlock }): JSX.Element => 
       {...listeners}
     >
       <h3>{block.title}</h3>
-      <p>{block.description}</p>
+      <p className="compact-line">{block.description}</p>
       <p className="muted tiny">Перетащите в нижнюю зону сборки</p>
     </div>
   );
@@ -114,7 +114,7 @@ const SelectedSortable = ({ item }: { item: SelectedBlock }): JSX.Element => {
       {...listeners}
     >
       <h3>{item.block.title}</h3>
-      <p>{item.block.body}</p>
+      <p className="compact-line">{item.block.description}</p>
     </div>
   );
 };
