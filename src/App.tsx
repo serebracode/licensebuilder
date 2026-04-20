@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TextAlign from '@tiptap/extension-text-align';
 import {
   DndContext,
   DragOverlay,
@@ -57,7 +60,6 @@ const getApi = (): LicenseBuilderApi => {
   if (typeof window !== 'undefined' && window.licenseBuilder) {
     return window.licenseBuilder;
   }
-
   return {
     getSettings: async () => ({}),
     selectDirectory: async () => {
@@ -76,6 +78,29 @@ const getApi = (): LicenseBuilderApi => {
 const replaceVars = (text: string, values: Record<string, string>): string =>
   text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, name: string) => values[name] || `{{${name}}}`);
 
+function htmlToParagraphs(html: string): string[] {
+  if (!html.trim().startsWith('<')) {
+    return html.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  }
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const result: string[] = [];
+  div.querySelectorAll('p, li').forEach(el => {
+    const text = el.textContent?.trim();
+    if (text) result.push(text);
+  });
+  return result;
+}
+
+function bodyToHtml(block: LicenseBlock): string {
+  if (block.body.trim().startsWith('<')) return block.body;
+  if (block.paragraphs?.length) {
+    return '<p>' + block.paragraphs.map(p => p.trim()).join('</p><p>') + '</p>';
+  }
+  const paras = block.body.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  return paras.length ? '<p>' + paras.join('</p><p>') + '</p>' : '<p>' + block.body + '</p>';
+}
+
 const DragDots = (): JSX.Element => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
     <circle cx="3.5" cy="3" r="1" fill="currentColor" />
@@ -84,16 +109,6 @@ const DragDots = (): JSX.Element => (
     <circle cx="8.5" cy="6" r="1" fill="currentColor" />
     <circle cx="3.5" cy="9" r="1" fill="currentColor" />
     <circle cx="8.5" cy="9" r="1" fill="currentColor" />
-  </svg>
-);
-
-
-const LogoMark = (): JSX.Element => (
-  <svg className="brand-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64.17 64.07" aria-hidden>
-    <path
-      fill="#231f20"
-      d="M0,32.04C0,14.32,14.32,0,32.13,0s32.04,14.32,32.04,32.04-14.32,32.04-32.04,32.04S0,49.85,0,32.04ZM57.46,32.04c0-14.14-11.29-25.34-25.43-25.34S6.79,17.9,6.79,32.04s11.2,25.34,25.24,25.34,25.43-11.2,25.43-25.34ZM40.67,27.91c-1.1-3.21-4.22-5.6-8.35-5.6-5.78,0-9.46,4.31-9.46,9.64s3.67,9.73,9.46,9.73c4.04,0,7.25-2.39,8.35-5.78h7.53c-1.38,7.34-7.53,12.85-15.97,12.85-10.1,0-16.62-7.44-16.62-16.8s6.52-16.71,16.62-16.71c8.45,0,14.69,5.42,15.97,12.67h-7.53Z"
-    />
   </svg>
 );
 
@@ -195,46 +210,115 @@ function BlockEditor({
   onSave: (updated: LicenseBlock) => void;
 }): JSX.Element {
   const [title, setTitle] = useState(block.title);
-  const [body, setBody] = useState(
-    block.paragraphs && block.paragraphs.length > 0
-      ? block.paragraphs.join('\n\n')
-      : block.body
-  );
   const [saved, setSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSave = () => {
-    const paragraphs = body.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-    onSave({ ...block, title, body, paragraphs });
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      TextAlign.configure({ types: ['paragraph', 'heading'] }),
+    ],
+    content: bodyToHtml(block),
+  });
+
+  const handleSave = (): void => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    const paragraphs = htmlToParagraphs(html);
+    onSave({ ...block, title, body: html, paragraphs });
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
 
+  const handleImport = async (file: File): Promise<void> => {
+    try {
+      const { sections } = await parseDocx(file);
+      const allParas = sections.flatMap(s => [s.heading, ...s.paragraphs]);
+      const html = '<p>' + allParas.map(p => p.trim()).filter(Boolean).join('</p><p>') + '</p>';
+      editor?.commands.setContent(html);
+    } catch (e) {
+      console.error('Import error:', e);
+    }
+  };
+
   return (
-    <div className="block-editor">
-      <div className="block-editor__header">
-        <input
-          className="block-editor__title-input"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="Название блока"
-        />
-        <button
-          type="button"
-          className={`btn-primary${saved ? ' btn-saved' : ''}`}
-          onClick={handleSave}
-        >
-          {saved ? '✓ Сохранено' : 'Сохранить'}
-        </button>
-      </div>
-      <div className="block-editor__hint">
-        Разделяйте пункты пустой строкой — каждый получит номер X.Y в документе
-      </div>
-      <textarea
-        className="block-editor__textarea"
-        value={body}
-        onChange={e => setBody(e.target.value)}
-        spellCheck
-        placeholder="Текст блока..."
+    <div className="block-editor-canvas">
+      <article className="docs-paper block-editor-paper">
+        <div className="block-editor__header">
+          <input
+            className="block-editor__title-input"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Название блока"
+          />
+          <div className="block-editor__actions">
+            <button type="button" className="btn-ghost" onClick={() => fileInputRef.current?.click()}>
+              Импорт .docx
+            </button>
+            <button
+              type="button"
+              className={`btn-primary${saved ? ' btn-saved' : ''}`}
+              onClick={handleSave}
+            >
+              {saved ? '✓ Сохранено' : 'Сохранить'}
+            </button>
+          </div>
+        </div>
+
+        <div className="editor-format-bar">
+          <button
+            type="button"
+            className={`btn-tool${editor?.isActive('bold') ? ' active' : ''}`}
+            onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run(); }}
+            title="Жирный"
+          >B</button>
+          <div className="format-separator" />
+          <button
+            type="button"
+            className={`btn-tool${editor?.isActive({ textAlign: 'left' }) ? ' active' : ''}`}
+            onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('left').run(); }}
+            title="По левому краю"
+          >⇤</button>
+          <button
+            type="button"
+            className={`btn-tool${editor?.isActive({ textAlign: 'center' }) ? ' active' : ''}`}
+            onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('center').run(); }}
+            title="По центру"
+          >≡</button>
+          <button
+            type="button"
+            className={`btn-tool${editor?.isActive({ textAlign: 'right' }) ? ' active' : ''}`}
+            onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('right').run(); }}
+            title="По правому краю"
+          >⇥</button>
+          <div className="format-separator" />
+          <button
+            type="button"
+            className={`btn-tool${editor?.isActive('orderedList') ? ' active' : ''}`}
+            onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleOrderedList().run(); }}
+            title="Нумерованный список"
+          >1.</button>
+          <button
+            type="button"
+            className={`btn-tool${editor?.isActive('bulletList') ? ' active' : ''}`}
+            onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run(); }}
+            title="Маркированный список"
+          >•</button>
+        </div>
+
+        <EditorContent editor={editor} className="tiptap-editor" />
+      </article>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".docx"
+        style={{ display: 'none' }}
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file) void handleImport(file);
+          e.target.value = '';
+        }}
       />
     </div>
   );
@@ -258,7 +342,6 @@ const App = (): JSX.Element => {
     contract_date: ''
   });
   const [showVarsPopup, setShowVarsPopup] = useState(false);
-  const [showDocSettings, setShowDocSettings] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [fontFamily, setFontFamily] = useState('Times New Roman');
   const [isBold, setIsBold] = useState(false);
@@ -277,16 +360,13 @@ const App = (): JSX.Element => {
     setError('');
     try {
       const selectedPath = await api.selectDirectory();
-      if (!selectedPath) {
-        return;
-      }
+      if (!selectedPath) return;
       const saved = await api.initWorkspace({ basePath: selectedPath, mode: 'useExisting' });
       setSettings(saved);
     } catch (setupError) {
       setError(setupError instanceof Error ? setupError.message : 'Не удалось настроить workspace');
     }
   };
-
 
   const handleImportFile = async (file: File): Promise<void> => {
     setImportStatus('Парсинг…');
@@ -346,6 +426,7 @@ const App = (): JSX.Element => {
     ]);
     setAvailableBlocks((prev) => prev.filter((item) => item.id !== block.id));
   };
+
   const requiredVariables = useMemo(() => {
     const vars = new Set<string>(['company_name', 'contract_date']);
     selectedBlocks.forEach(({ block }) => block.variables.forEach((name) => vars.add(name)));
@@ -356,16 +437,20 @@ const App = (): JSX.Element => {
     const bodyLines = selectedBlocks.flatMap(({ block }, i) => {
       const artNum = i + 1;
       const heading = numberingEnabled ? `СТАТЬЯ ${artNum}. ${block.title}` : block.title;
-      if (block.paragraphs && block.paragraphs.length > 0) {
-        const paras = block.paragraphs.map((p, j) => ({
+      const paragraphs = block.paragraphs?.length
+        ? block.paragraphs
+        : htmlToParagraphs(block.body);
+      if (paragraphs.length > 0) {
+        const paras = paragraphs.map((p, j) => ({
           isHeading: false,
           text: numberingEnabled ? `${artNum}.${j + 1} ${replaceVars(p, variables)}` : replaceVars(p, variables),
         }));
         return [{ isHeading: true, text: heading }, ...paras];
       }
+      const rawText = block.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       return [
         { isHeading: true, text: heading },
-        { isHeading: false, text: replaceVars(block.body, variables) },
+        { isHeading: false, text: replaceVars(rawText, variables) },
       ];
     });
     return {
@@ -411,9 +496,9 @@ const App = (): JSX.Element => {
     if (activeId.startsWith('available:') && (overId === 'assembly-zone' || overId.startsWith('selected:'))) {
       const block = availableBlocks.find((item) => item.id === activeId.replace('available:', ''));
       if (!block) {
+        setActiveDragBlock(null);
         return;
       }
-
       addFromLibrary(block);
       setActiveDragBlock(null);
       return;
@@ -439,8 +524,7 @@ const App = (): JSX.Element => {
     <main className="icloud-page">
       <header className="icloud-topbar">
         <div className="brand-wrap">
-          <LogoMark />
-          <div className="lb-title">License Constructor</div>
+          <span className="brand-copyright">© LicenseConstructor</span>
         </div>
         <div className="top-actions">
           <button type="button" className="btn-ghost">
@@ -532,20 +616,19 @@ const App = (): JSX.Element => {
 
             {/* ── Toolbar (only on preview tab) ── */}
             {activeTab === 'preview' && (
-            <div className="preview-toolbar">
-              <div className="editor-tools" />
-              <button className="btn-ghost" type="button" onClick={() => setShowDocSettings((v) => !v)}>Настройки</button>
-              <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>Переменные</button>
-              <div className="export-menu-wrap">
-                <button className="btn-ghost" type="button" onClick={() => setShowExportMenu((v) => !v)}>Экспорт ▾</button>
-                {showExportMenu ? (
-                  <div className="export-menu">
-                    <button type="button" disabled={!hasWorkspace}>Экспорт .docx</button>
-                    <button type="button" disabled={!hasWorkspace}>Экспорт .pdf</button>
-                  </div>
-                ) : null}
+              <div className="preview-toolbar">
+                <div className="editor-tools" />
+                <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>Переменные</button>
+                <div className="export-menu-wrap">
+                  <button className="btn-ghost" type="button" onClick={() => setShowExportMenu((v) => !v)}>Экспорт ▾</button>
+                  {showExportMenu ? (
+                    <div className="export-menu">
+                      <button type="button" disabled={!hasWorkspace}>Экспорт .docx</button>
+                      <button type="button" disabled={!hasWorkspace}>Экспорт .pdf</button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            </div>
             )}
 
             {/* ── Block editor tabs ── */}
@@ -567,7 +650,6 @@ const App = (): JSX.Element => {
                   { text: previewParts.footer, isHeading: false },
                 ];
 
-                // Paginate by char count
                 const pages: PreviewLine[][] = [];
                 const MAX = 1800;
                 let page: PreviewLine[] = [];
@@ -622,10 +704,37 @@ const App = (): JSX.Element => {
         </DragOverlay>
       </DndContext>
 
-      {showDocSettings && (
-        <div className="popup-backdrop" onClick={() => setShowDocSettings(false)}>
-          <div className="popup" onClick={e => e.stopPropagation()}>
-            <h3>Настройки документа</h3>
+      {showVarsPopup ? (
+        <div className="popup-backdrop" onClick={() => setShowVarsPopup(false)}>
+          <div className="popup" onClick={(e) => e.stopPropagation()}>
+            <h3>Переменные договора</h3>
+            <div className="popup-grid">
+              {requiredVariables.map((name) => (
+                <label key={name}>
+                  {name}
+                  <input
+                    value={variables[name] ?? ''}
+                    onChange={(event) =>
+                      setVariables((prev) => ({
+                        ...prev,
+                        [name]: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={numberingEnabled}
+                onChange={(event) => setNumberingEnabled(event.target.checked)}
+              />
+              Включить нумерацию пунктов
+            </label>
+
+            <div className="popup-divider" />
+            <h4 className="popup-section-title">Настройки документа</h4>
             <div className="doc-settings-grid">
               <label>
                 Шрифт
@@ -663,41 +772,6 @@ const App = (): JSX.Element => {
                 </div>
               </label>
             </div>
-            <div className="popup-actions">
-              <button className="btn-primary" type="button" onClick={() => setShowDocSettings(false)}>Готово</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showVarsPopup ? (
-        <div className="popup-backdrop" onClick={() => setShowVarsPopup(false)}>
-          <div className="popup" onClick={(e) => e.stopPropagation()}>
-            <h3>Переменные договора</h3>
-            <div className="popup-grid">
-              {requiredVariables.map((name) => (
-                <label key={name}>
-                  {name}
-                  <input
-                    value={variables[name] ?? ''}
-                    onChange={(event) =>
-                      setVariables((prev) => ({
-                        ...prev,
-                        [name]: event.target.value
-                      }))
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={numberingEnabled}
-                onChange={(event) => setNumberingEnabled(event.target.checked)}
-              />
-              Включить нумерацию пунктов
-            </label>
 
             <div className="popup-actions">
               <button className="btn-primary" type="button" onClick={() => setShowVarsPopup(false)}>Готово</button>

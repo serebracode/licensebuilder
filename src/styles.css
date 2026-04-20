@@ -30,20 +30,17 @@ body {
   background: #fbfbfc;
 }
 
-.lb-title { font-size: 18px; font-weight: 500; }
-.lb-subtitle { font-size: 12px; color: #9a9aa1; }
-
-
 .brand-wrap {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.brand-logo {
-  height: 18px;
-  width: 18px;
-  flex-shrink: 0;
+.brand-copyright {
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
+  letter-spacing: -0.01em;
 }
 
 .top-actions { display: flex; gap: 8px; }
@@ -115,13 +112,22 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  cursor: grab;
+  cursor: default;
 }
 
 .block-row:hover { background: #f7f7f8; }
 
-.drag-handle { color: #c8c8cf; line-height: 0; }
-.block-info { flex: 1; min-width: 0; cursor: grab; }
+.drag-handle {
+  color: #c8c8cf;
+  line-height: 0;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+.block-info { flex: 1; min-width: 0; }
+
 .block-name {
   font-size: 13px;
   font-weight: 500;
@@ -136,7 +142,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 
 .row-delete {
   border: none;
@@ -195,7 +200,6 @@ body {
   border-bottom: 0.5px solid transparent;
   background: transparent;
 }
-
 
 .editor-tools {
   display: flex;
@@ -285,22 +289,39 @@ body {
 }
 .tab__close:hover { color: #c00; background: #fee; }
 
-/* ── Block editor ──────────────────────────────────────────────────────────── */
 
-.block-editor {
+/* ── Block editor (paper layout) ──────────────────────────────────────────── */
+
+.block-editor-canvas {
   flex: 1;
   min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  padding: 20px 24px;
-  gap: 12px;
-  background: #fff;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  background: #f1f3f6;
+}
+
+.block-editor-paper {
+  width: min(820px, 100%);
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .block-editor__header {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.block-editor__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .block-editor__title-input {
@@ -317,26 +338,57 @@ body {
 
 .block-editor__title-input:focus { border-bottom-color: #111; }
 
-.block-editor__hint {
-  font-size: 11px;
-  color: #aaa;
+/* ── Format toolbar ── */
+
+.editor-format-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 0.5px solid #e8e8e8;
 }
 
-.block-editor__textarea {
+.format-separator {
+  width: 1px;
+  height: 18px;
+  background: #e0e0e4;
+  margin: 0 4px;
+}
+
+/* ── TipTap editor ── */
+
+.tiptap-editor {
   flex: 1;
-  min-height: 0;
-  resize: none;
-  border: 0.5px solid #e0e0e4;
-  border-radius: 6px;
-  padding: 12px 14px;
+  min-height: 300px;
+}
+
+.tiptap-editor .ProseMirror {
+  min-height: 300px;
+  outline: none;
   font-size: 13px;
-  font-family: inherit;
   line-height: 1.65;
   color: #111;
-  outline: none;
+  font-family: inherit;
 }
 
-.block-editor__textarea:focus { border-color: #999; }
+.tiptap-editor .ProseMirror p {
+  margin-bottom: 8px;
+}
+
+.tiptap-editor .ProseMirror ol,
+.tiptap-editor .ProseMirror ul {
+  padding-left: 24px;
+  margin-bottom: 8px;
+}
+
+.tiptap-editor .ProseMirror li {
+  margin-bottom: 4px;
+}
+
+.tiptap-editor .ProseMirror p:last-child,
+.tiptap-editor .ProseMirror li:last-child {
+  margin-bottom: 0;
+}
 
 .btn-saved { background: #1a9e5c !important; }
 
@@ -390,6 +442,10 @@ body {
   color: #111;
 }
 
+.block-editor-paper {
+  min-height: 600px;
+}
+
 .preview-line { margin-bottom: 6px; }
 
 .preview-heading {
@@ -418,6 +474,8 @@ body {
 
 .popup {
   width: min(520px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
   background: #fff;
   border-radius: 10px;
   border: 0.5px solid #ddd;
@@ -426,6 +484,19 @@ body {
 
 .popup h3 {
   font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.popup-divider {
+  height: 0.5px;
+  background: #e8e8e8;
+  margin: 16px 0 12px;
+}
+
+.popup-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
   margin-bottom: 10px;
 }
 
@@ -490,7 +561,6 @@ body {
   .docs-paper { padding: 24px; min-height: auto; }
 }
 
-
 .block-row-overlay {
   width: 260px;
   background: #fff;
@@ -498,7 +568,6 @@ body {
   border-radius: 8px;
   box-shadow: 0 8px 18px rgb(0 0 0 / 16%);
 }
-
 
 .toggle-row {
   margin-top: 12px;
