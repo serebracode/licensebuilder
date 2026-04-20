@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   DndContext,
+  DragOverlay,
   MouseSensor,
   TouchSensor,
   closestCenter,
@@ -8,7 +9,8 @@ import {
   useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent
+  type DragEndEvent,
+  type DragStartEvent
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -147,7 +149,9 @@ const App = (): JSX.Element => {
 
   const [settings, setSettings] = useState<WorkspaceSettings>({});
   const [error, setError] = useState('');
+  const [availableBlocks, setAvailableBlocks] = useState<LicenseBlock[]>(TEST_BLOCKS);
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
+  const [activeDragBlock, setActiveDragBlock] = useState<LicenseBlock | null>(null);
   const [variables, setVariables] = useState<Record<string, string>>({
     company_name: '',
     contract_date: ''
@@ -155,7 +159,6 @@ const App = (): JSX.Element => {
   const [showVarsPopup, setShowVarsPopup] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const isBrowserPreview = typeof window !== 'undefined' && !window.licenseBuilder;
   const hasWorkspace = Boolean(settings.workspacePath);
 
   useEffect(() => {
@@ -199,11 +202,35 @@ const App = (): JSX.Element => {
 
 
   const removeFromAssembly = (instanceId: string): void => {
-    setSelectedBlocks((prev) => prev.filter((item) => item.instanceId !== instanceId));
+    setSelectedBlocks((prev) => {
+      const removed = prev.find((item) => item.instanceId === instanceId);
+      if (removed) {
+        setAvailableBlocks((blocks) => [...blocks, removed.block]);
+      }
+      return prev.filter((item) => item.instanceId !== instanceId);
+    });
+  };
+
+  const onDragStart = (event: DragStartEvent): void => {
+    const activeId = String(event.active.id);
+    if (activeId.startsWith('available:')) {
+      const blockId = activeId.replace('available:', '');
+      const block = availableBlocks.find((item) => item.id === blockId) ?? null;
+      setActiveDragBlock(block);
+      return;
+    }
+
+    const selected = selectedBlocks.find((item) => item.instanceId === activeId);
+    setActiveDragBlock(selected?.block ?? null);
+  };
+
+  const onDragCancel = (): void => {
+    setActiveDragBlock(null);
   };
   const onDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event;
     if (!over) {
+      setActiveDragBlock(null);
       return;
     }
 
@@ -212,7 +239,7 @@ const App = (): JSX.Element => {
 
     if (activeId.startsWith('available:') && (overId === 'assembly-zone' || overId.startsWith('selected:'))) {
       const blockId = activeId.replace('available:', '');
-      const block = TEST_BLOCKS.find((item) => item.id === blockId);
+      const block = availableBlocks.find((item) => item.id === blockId);
       if (!block) {
         return;
       }
@@ -221,6 +248,8 @@ const App = (): JSX.Element => {
         ...prev,
         { instanceId: `selected:${block.id}:${Date.now()}:${Math.random().toString(16).slice(2, 6)}`, block }
       ]);
+      setAvailableBlocks((prev) => prev.filter((item) => item.id !== block.id));
+      setActiveDragBlock(null);
       return;
     }
 
@@ -230,6 +259,8 @@ const App = (): JSX.Element => {
     if (activeIndex >= 0 && overIndex >= 0 && activeIndex !== overIndex) {
       setSelectedBlocks((prev) => arrayMove(prev, activeIndex, overIndex));
     }
+
+    setActiveDragBlock(null);
   };
 
   return (
@@ -250,15 +281,20 @@ const App = (): JSX.Element => {
         </div>
       </header>
 
-      {isBrowserPreview ? <div className="notice">Browser preview — нет доступа к файловой системе macOS.</div> : null}
       {error ? <div className="notice error">{error}</div> : null}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragCancel={onDragCancel}
+        onDragEnd={onDragEnd}
+      >
         <div className="layout">
           <section className="left-pane">
             <div className="section-label">Блоки</div>
             <div className="scroll-list">
-              {TEST_BLOCKS.map((block) => (
+              {availableBlocks.map((block) => (
                 <AvailableRow key={block.id} block={block} />
               ))}
             </div>
@@ -316,6 +352,17 @@ const App = (): JSX.Element => {
             </div>
           </section>
         </div>
+        <DragOverlay>
+          {activeDragBlock ? (
+            <div className="block-row block-row-overlay">
+              <span className="drag-handle"><DragDots /></span>
+              <div className="block-info">
+                <div className="block-name">{activeDragBlock.title}</div>
+                <div className="block-desc">{activeDragBlock.description}</div>
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
 
       {showVarsPopup ? (

@@ -179,8 +179,8 @@ body {
   justify-content: flex-end;
   gap: 8px;
   padding: 0 14px;
-  border-bottom: 0.5px solid #e8e8e8;
-  background: #f8f9fb;
+  border-bottom: 0.5px solid transparent;
+  background: transparent;
 }
 
 .export-menu-wrap { position: relative; }
@@ -287,4 +287,13 @@ body {
   .layout { grid-template-columns: 1fr; }
   .left-pane { max-height: 42vh; }
   .docs-paper { padding: 24px; min-height: auto; }
+}
+
+
+.block-row-overlay {
+  width: 260px;
+  background: #fff;
+  border: 0.5px solid #d9d9df;
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgb(0 0 0 / 16%);
 }
