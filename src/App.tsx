@@ -91,11 +91,7 @@ const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
     <div
       ref={setNodeRef}
       className="block-row"
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1
-      }}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
       {...attributes}
       {...listeners}
     >
@@ -117,11 +113,7 @@ const AssemblyRow = ({ item }: { item: SelectedBlock }): JSX.Element => {
     <div
       ref={setNodeRef}
       className="block-row"
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1
-      }}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
       {...attributes}
       {...listeners}
     >
@@ -145,6 +137,8 @@ const App = (): JSX.Element => {
     company_name: '',
     contract_date: ''
   });
+  const [showVarsPopup, setShowVarsPopup] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const isBrowserPreview = typeof window !== 'undefined' && !window.licenseBuilder;
   const hasWorkspace = Boolean(settings.workspacePath);
@@ -162,10 +156,7 @@ const App = (): JSX.Element => {
         return;
       }
 
-      const saved = await api.initWorkspace({
-        basePath: selectedPath,
-        mode: 'useExisting'
-      });
+      const saved = await api.initWorkspace({ basePath: selectedPath, mode: 'useExisting' });
       setSettings(saved);
     } catch (setupError) {
       setError(setupError instanceof Error ? setupError.message : 'Не удалось настроить workspace');
@@ -191,11 +182,6 @@ const App = (): JSX.Element => {
     };
   }, [selectedBlocks, variables]);
 
-  const charCount = useMemo(() => {
-    const body = previewParts.bodyLines.map((item) => `${item.title} ${item.text}`).join(' ');
-    return `${(previewParts.header + body + previewParts.footer).length} символ`;
-  }, [previewParts]);
-
   const onDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event;
     if (!over) {
@@ -214,10 +200,7 @@ const App = (): JSX.Element => {
 
       setSelectedBlocks((prev) => [
         ...prev,
-        {
-          instanceId: `selected:${block.id}:${Date.now()}:${Math.random().toString(16).slice(2, 6)}`,
-          block
-        }
+        { instanceId: `selected:${block.id}:${Date.now()}:${Math.random().toString(16).slice(2, 6)}`, block }
       ]);
       return;
     }
@@ -231,68 +214,79 @@ const App = (): JSX.Element => {
   };
 
   return (
-    <main className="page">
-      <div className="lb-root">
-        <header className="lb-header">
-          <div>
-            <div className="lb-title">License Builder</div>
-            <div className="lb-subtitle">Конструктор лицензионных договоров</div>
-          </div>
-          <div className="lb-header-actions">
-            <button type="button" className="btn-ghost">
-              {hasWorkspace ? `Workspace: ${settings.workspacePath}` : 'Workspace не настроен'}
-            </button>
-            <button type="button" className="btn-primary" onClick={configureWorkspace}>
-              Настроить папки
-            </button>
-          </div>
-        </header>
+    <main className="icloud-page">
+      <header className="icloud-topbar">
+        <div>
+          <div className="lb-title">License Builder</div>
+          <div className="lb-subtitle">Конструктор лицензионных договоров</div>
+        </div>
 
-        {isBrowserPreview ? (
-          <div className="lb-notice">Browser preview — нет доступа к файловой системе macOS.</div>
-        ) : null}
-        {error ? <div className="lb-notice lb-notice-error">{error}</div> : null}
+        <div className="top-actions">
+          <button type="button" className="btn-ghost">
+            {hasWorkspace ? `Workspace: ${settings.workspacePath}` : 'Workspace не настроен'}
+          </button>
+          <button type="button" className="btn-primary" onClick={configureWorkspace}>
+            Настроить папки
+          </button>
+        </div>
+      </header>
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <div className="lb-body">
-            <section className="lb-left">
-              <div className="section-label">Блоки</div>
+      {isBrowserPreview ? <div className="notice">Browser preview — нет доступа к файловой системе macOS.</div> : null}
+      {error ? <div className="notice error">{error}</div> : null}
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <div className="layout">
+          <section className="left-pane">
+            <div className="section-label">Блоки</div>
+            <SortableContext items={TEST_BLOCKS.map((b) => `available:${b.id}`)} strategy={verticalListSortingStrategy}>
+              <div className="scroll-list">
+                {TEST_BLOCKS.map((block) => (
+                  <AvailableRow key={block.id} block={block} />
+                ))}
+              </div>
+            </SortableContext>
+
+            <div className="h-divider" />
+            <div className="section-label">Сборка</div>
+
+            <div className="assembly-wrap">
               <SortableContext
-                items={TEST_BLOCKS.map((block) => `available:${block.id}`)}
+                items={selectedBlocks.map((item) => item.instanceId)}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="scroll-list">
-                  {TEST_BLOCKS.map((block) => (
-                    <AvailableRow key={block.id} block={block} />
-                  ))}
-                </div>
+                <DropZone id="assembly-zone">
+                  <div className="scroll-list">
+                    {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите блоки сюда</div> : null}
+                    {selectedBlocks.map((item) => (
+                      <AssemblyRow key={item.instanceId} item={item} />
+                    ))}
+                  </div>
+                </DropZone>
               </SortableContext>
+            </div>
+          </section>
 
-              <div className="column-divider" />
-              <div className="section-label">Сборка</div>
+          <section className="right-pane">
+            <div className="preview-toolbar">
+              <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>
+                Настройки переменных
+              </button>
 
-              <div className="assembly-section">
-                <SortableContext
-                  items={selectedBlocks.map((item) => item.instanceId)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <DropZone id="assembly-zone">
-                    <div className="scroll-list">
-                      {selectedBlocks.length === 0 ? (
-                        <div className="drop-hint">Перетащите блоки сюда</div>
-                      ) : null}
-                      {selectedBlocks.map((item) => (
-                        <AssemblyRow key={item.instanceId} item={item} />
-                      ))}
-                    </div>
-                  </DropZone>
-                </SortableContext>
+              <div className="export-menu-wrap">
+                <button className="btn-ghost" type="button" onClick={() => setShowExportMenu((v) => !v)}>
+                  Экспорт ▾
+                </button>
+                {showExportMenu ? (
+                  <div className="export-menu">
+                    <button type="button" disabled={!hasWorkspace}>Экспорт .docx</button>
+                    <button type="button" disabled={!hasWorkspace}>Экспорт .pdf</button>
+                  </div>
+                ) : null}
               </div>
-            </section>
+            </div>
 
-            <section className="lb-right">
-              <div className="preview-area">
-                <h2>Предпросмотр</h2>
+            <div className="docs-canvas">
+              <article className="docs-paper">
                 <p className="preview-line">{previewParts.header}</p>
                 {previewParts.bodyLines.map((line) => (
                   <div key={line.title}>
@@ -301,37 +295,40 @@ const App = (): JSX.Element => {
                   </div>
                 ))}
                 <p className="preview-line">{previewParts.footer}</p>
-              </div>
+              </article>
+            </div>
+          </section>
+        </div>
+      </DndContext>
 
-              <footer className="lb-footer">
-                <div className="vars-grid">
-                  {requiredVariables.map((name) => (
-                    <label key={name}>
-                      {name}
-                      <input
-                        className="field-input"
-                        type="text"
-                        value={variables[name] ?? ''}
-                        onChange={(event) =>
-                          setVariables((prev) => ({
-                            ...prev,
-                            [name]: event.target.value
-                          }))
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-                <div className="export-actions">
-                  <span className="char-count">{charCount}</span>
-                  <button type="button" className="btn-export" disabled={!hasWorkspace}>Экспорт .docx</button>
-                  <button type="button" className="btn-export" disabled={!hasWorkspace}>Экспорт .pdf</button>
-                </div>
-              </footer>
-            </section>
+      {showVarsPopup ? (
+        <div className="popup-backdrop" onClick={() => setShowVarsPopup(false)}>
+          <div className="popup" onClick={(e) => e.stopPropagation()}>
+            <h3>Переменные договора</h3>
+            <div className="popup-grid">
+              {requiredVariables.map((name) => (
+                <label key={name}>
+                  {name}
+                  <input
+                    value={variables[name] ?? ''}
+                    onChange={(event) =>
+                      setVariables((prev) => ({
+                        ...prev,
+                        [name]: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="popup-actions">
+              <button className="btn-primary" type="button" onClick={() => setShowVarsPopup(false)}>
+                Готово
+              </button>
+            </div>
           </div>
-        </DndContext>
-      </div>
+        </div>
+      ) : null}
     </main>
   );
 };
