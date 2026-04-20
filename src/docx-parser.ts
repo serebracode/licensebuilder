@@ -8,6 +8,7 @@ export interface DocSection {
 
 export interface ParsedDoc {
   licenseTitle: string;
+  preamble: string[];
   sections: DocSection[];
 }
 
@@ -86,5 +87,5 @@ export async function parseDocx(source: File | ArrayBuffer): Promise<ParsedDoc> 
   // Extract license title from preamble or first heading
   const titleLine = preamble.find(l => l.includes('ЛИЦЕНЗИ')) ?? sections[0]?.heading ?? 'Договор';
 
-  return { licenseTitle: titleLine, sections };
+  return { licenseTitle: titleLine, preamble, sections };
 }
