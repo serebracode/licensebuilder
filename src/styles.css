@@ -124,6 +124,21 @@ body {
   text-overflow: ellipsis;
 }
 
+
+.row-delete {
+  border: none;
+  background: transparent;
+  color: #b0b0b8;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.row-delete:hover {
+  color: #7a7a82;
+}
+
 .h-divider {
   height: 0.5px;
   background: #e8e8e8;

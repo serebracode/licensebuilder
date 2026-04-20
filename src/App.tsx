@@ -4,6 +4,7 @@ import {
   MouseSensor,
   TouchSensor,
   closestCenter,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
@@ -83,7 +84,7 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
 };
 
 const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `available:${block.id}`
   });
 
@@ -91,7 +92,7 @@ const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
     <div
       ref={setNodeRef}
       className="block-row"
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }}
       {...attributes}
       {...listeners}
     >
@@ -104,7 +105,13 @@ const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
   );
 };
 
-const AssemblyRow = ({ item }: { item: SelectedBlock }): JSX.Element => {
+const AssemblyRow = ({
+  item,
+  onDelete
+}: {
+  item: SelectedBlock;
+  onDelete: (instanceId: string) => void;
+}): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.instanceId
   });
@@ -122,6 +129,14 @@ const AssemblyRow = ({ item }: { item: SelectedBlock }): JSX.Element => {
         <div className="block-name">{item.block.title}</div>
         <div className="block-desc">{item.block.description}</div>
       </div>
+      <button
+        type="button"
+        className="row-delete"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() => onDelete(item.instanceId)}
+      >
+        ×
+      </button>
     </div>
   );
 };
@@ -182,6 +197,10 @@ const App = (): JSX.Element => {
     };
   }, [selectedBlocks, variables]);
 
+
+  const removeFromAssembly = (instanceId: string): void => {
+    setSelectedBlocks((prev) => prev.filter((item) => item.instanceId !== instanceId));
+  };
   const onDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event;
     if (!over) {
@@ -238,13 +257,11 @@ const App = (): JSX.Element => {
         <div className="layout">
           <section className="left-pane">
             <div className="section-label">Блоки</div>
-            <SortableContext items={TEST_BLOCKS.map((b) => `available:${b.id}`)} strategy={verticalListSortingStrategy}>
-              <div className="scroll-list">
-                {TEST_BLOCKS.map((block) => (
-                  <AvailableRow key={block.id} block={block} />
-                ))}
-              </div>
-            </SortableContext>
+            <div className="scroll-list">
+              {TEST_BLOCKS.map((block) => (
+                <AvailableRow key={block.id} block={block} />
+              ))}
+            </div>
 
             <div className="h-divider" />
             <div className="section-label">Сборка</div>
@@ -258,7 +275,7 @@ const App = (): JSX.Element => {
                   <div className="scroll-list">
                     {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите блоки сюда</div> : null}
                     {selectedBlocks.map((item) => (
-                      <AssemblyRow key={item.instanceId} item={item} />
+                      <AssemblyRow key={item.instanceId} item={item} onDelete={removeFromAssembly} />
                     ))}
                   </div>
                 </DropZone>
