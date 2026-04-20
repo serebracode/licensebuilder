@@ -371,12 +371,11 @@ body {
 
 .docs-paper {
   width: 794px;
-  min-height: 1123px;
   background: #fff;
   border: 1px solid #e6e6e8;
   box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
-  /* A4 margins: top 1cm, right 1cm, bottom 2cm, left 2cm */
-  padding: 38px 38px 76px 76px;
+  /* A4 margins: top 1cm, right 1cm, left 2cm, bottom = 66% of left */
+  padding: 38px 38px 50px 76px;
   font-size: 11pt;
   line-height: 1.2;
   color: #111;

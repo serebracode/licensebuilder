@@ -379,7 +379,7 @@ const App = (): JSX.Element => {
   }, [frameBlocks, selectedBlocks, variables, frame]);
 
   // Measure actual rendered heights and split into A4 pages
-  const A4_CONTENT_H = 1123 - 38 - 76; // content height minus top/bottom padding
+  const A4_CONTENT_H = 1123 - 38 - 50; // content height: A4 minus top(38) and bottom(50) padding
   useLayoutEffect(() => {
     const el = measureRef.current;
     if (!el) return;
