@@ -258,6 +258,7 @@ const App = (): JSX.Element => {
     contract_date: ''
   });
   const [showVarsPopup, setShowVarsPopup] = useState(false);
+  const [showDocSettings, setShowDocSettings] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [fontFamily, setFontFamily] = useState('Times New Roman');
   const [isBold, setIsBold] = useState(false);
@@ -532,27 +533,8 @@ const App = (): JSX.Element => {
             {/* ── Toolbar (only on preview tab) ── */}
             {activeTab === 'preview' && (
             <div className="preview-toolbar">
-              <div className="editor-tools">
-                <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)}>
-                  <option>Times New Roman</option>
-                  <option>Arial</option>
-                  <option>Helvetica</option>
-                  <option>Georgia</option>
-                </select>
-                <select value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))}>
-                  <option value={11}>11</option>
-                  <option value={12}>12</option>
-                  <option value={13}>13</option>
-                  <option value={14}>14</option>
-                  <option value={16}>16</option>
-                  <option value={18}>18</option>
-                </select>
-                <button type="button" className={`btn-tool ${isBold ? 'active' : ''}`} onClick={() => setIsBold((v) => !v)}>B</button>
-                <button type="button" className={`btn-tool ${isItalic ? 'active' : ''}`} onClick={() => setIsItalic((v) => !v)}>I</button>
-                <button type="button" className={`btn-tool ${textAlign === 'left' ? 'active' : ''}`} onClick={() => setTextAlign('left')}>⇤</button>
-                <button type="button" className={`btn-tool ${textAlign === 'center' ? 'active' : ''}`} onClick={() => setTextAlign('center')}>≡</button>
-                <button type="button" className={`btn-tool ${textAlign === 'right' ? 'active' : ''}`} onClick={() => setTextAlign('right')}>⇥</button>
-              </div>
+              <div className="editor-tools" />
+              <button className="btn-ghost" type="button" onClick={() => setShowDocSettings((v) => !v)}>Настройки</button>
               <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>Переменные</button>
               <div className="export-menu-wrap">
                 <button className="btn-ghost" type="button" onClick={() => setShowExportMenu((v) => !v)}>Экспорт ▾</button>
@@ -639,6 +621,54 @@ const App = (): JSX.Element => {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {showDocSettings && (
+        <div className="popup-backdrop" onClick={() => setShowDocSettings(false)}>
+          <div className="popup" onClick={e => e.stopPropagation()}>
+            <h3>Настройки документа</h3>
+            <div className="doc-settings-grid">
+              <label>
+                Шрифт
+                <select value={fontFamily} onChange={e => setFontFamily(e.target.value)}>
+                  <option>Times New Roman</option>
+                  <option>Arial</option>
+                  <option>Helvetica</option>
+                  <option>Georgia</option>
+                </select>
+              </label>
+              <label>
+                Размер
+                <select value={fontSize} onChange={e => setFontSize(Number(e.target.value))}>
+                  <option value={11}>11</option>
+                  <option value={12}>12</option>
+                  <option value={13}>13</option>
+                  <option value={14}>14</option>
+                  <option value={16}>16</option>
+                  <option value={18}>18</option>
+                </select>
+              </label>
+              <label>
+                Начертание
+                <div className="doc-settings-row">
+                  <button type="button" className={`btn-tool${isBold ? ' active' : ''}`} onClick={() => setIsBold(v => !v)}>B</button>
+                  <button type="button" className={`btn-tool${isItalic ? ' active' : ''}`} onClick={() => setIsItalic(v => !v)}>I</button>
+                </div>
+              </label>
+              <label>
+                Выравнивание
+                <div className="doc-settings-row">
+                  <button type="button" className={`btn-tool${textAlign === 'left' ? ' active' : ''}`} onClick={() => setTextAlign('left')}>⇤</button>
+                  <button type="button" className={`btn-tool${textAlign === 'center' ? ' active' : ''}`} onClick={() => setTextAlign('center')}>≡</button>
+                  <button type="button" className={`btn-tool${textAlign === 'right' ? ' active' : ''}`} onClick={() => setTextAlign('right')}>⇥</button>
+                </div>
+              </label>
+            </div>
+            <div className="popup-actions">
+              <button className="btn-primary" type="button" onClick={() => setShowDocSettings(false)}>Готово</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showVarsPopup ? (
         <div className="popup-backdrop" onClick={() => setShowVarsPopup(false)}>

@@ -429,6 +429,34 @@ body {
   margin-bottom: 10px;
 }
 
+.doc-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.doc-settings-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: #888;
+}
+
+.doc-settings-grid select {
+  border: 0.5px solid #d8d8dd;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: #fff;
+}
+
+.doc-settings-row {
+  display: flex;
+  gap: 4px;
+}
+
 .popup-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
