@@ -71,6 +71,16 @@ const DragDots = (): JSX.Element => (
   </svg>
 );
 
+
+const LogoMark = (): JSX.Element => (
+  <svg className="brand-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64.17 64.07" aria-hidden>
+    <path
+      fill="#231f20"
+      d="M0,32.04C0,14.32,14.32,0,32.13,0s32.04,14.32,32.04,32.04-14.32,32.04-32.04,32.04S0,49.85,0,32.04ZM57.46,32.04c0-14.14-11.29-25.34-25.43-25.34S6.79,17.9,6.79,32.04s11.2,25.34,25.24,25.34,25.43-11.2,25.43-25.34ZM40.67,27.91c-1.1-3.21-4.22-5.6-8.35-5.6-5.78,0-9.46,4.31-9.46,9.64s3.67,9.73,9.46,9.73c4.04,0,7.25-2.39,8.35-5.78h7.53c-1.38,7.34-7.53,12.85-15.97,12.85-10.1,0-16.62-7.44-16.62-16.8s6.52-16.71,16.62-16.71c8.45,0,14.69,5.42,15.97,12.67h-7.53Z"
+    />
+  </svg>
+);
+
 const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.Element => {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
@@ -80,7 +90,13 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
   );
 };
 
-const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
+const AvailableRow = ({
+  block,
+  onAdd
+}: {
+  block: LicenseBlock;
+  onAdd: (block: LicenseBlock) => void;
+}): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `available:${block.id}`
   });
@@ -90,9 +106,10 @@ const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
       ref={setNodeRef}
       className="block-row"
       style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }}
+      onClick={() => onAdd(block)}
     >
-      <span className="drag-handle" {...attributes} {...listeners}><DragDots /></span>
-      <div className="block-info">
+      <span className="drag-handle"><DragDots /></span>
+      <div className="block-info" {...attributes} {...listeners}>
         <div className="block-name">{block.title}</div>
         <div className="block-desc">{block.description}</div>
       </div>
@@ -117,8 +134,8 @@ const AssemblyRow = ({
       className="block-row"
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
     >
-      <span className="drag-handle" {...attributes} {...listeners}><DragDots /></span>
-      <div className="block-info">
+      <span className="drag-handle"><DragDots /></span>
+      <div className="block-info" {...attributes} {...listeners}>
         <div className="block-name">{item.block.title}</div>
         <div className="block-desc">{item.block.description}</div>
       </div>
@@ -154,6 +171,7 @@ const App = (): JSX.Element => {
   const [isItalic, setIsItalic] = useState(false);
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
   const [fontSize, setFontSize] = useState(13);
+  const [numberingEnabled, setNumberingEnabled] = useState(true);
 
   const hasWorkspace = Boolean(settings.workspacePath);
 
@@ -175,6 +193,14 @@ const App = (): JSX.Element => {
     }
   };
 
+
+  const addFromLibrary = (block: LicenseBlock): void => {
+    setSelectedBlocks((prev) => [
+      ...prev,
+      { instanceId: `selected:${block.id}:${Date.now()}:${Math.random().toString(16).slice(2, 6)}`, block }
+    ]);
+    setAvailableBlocks((prev) => prev.filter((item) => item.id !== block.id));
+  };
   const requiredVariables = useMemo(() => {
     const vars = new Set<string>(['company_name', 'contract_date']);
     selectedBlocks.forEach(({ block }) => block.variables.forEach((name) => vars.add(name)));
@@ -183,7 +209,7 @@ const App = (): JSX.Element => {
 
   const previewParts = useMemo(() => {
     const bodyLines = selectedBlocks.map(({ block }, i) => ({
-      title: `${i + 1}. ${block.title}`,
+      title: numberingEnabled ? `${i + 1}. ${block.title}` : block.title,
       text: replaceVars(block.body, variables)
     }));
     return {
@@ -191,7 +217,7 @@ const App = (): JSX.Element => {
       bodyLines,
       footer: replaceVars(TEST_FRAME.footer, variables)
     };
-  }, [selectedBlocks, variables]);
+  }, [numberingEnabled, selectedBlocks, variables]);
 
   const removeFromAssembly = (instanceId: string): void => {
     setSelectedBlocks((prev) => {
@@ -232,11 +258,7 @@ const App = (): JSX.Element => {
         return;
       }
 
-      setSelectedBlocks((prev) => [
-        ...prev,
-        { instanceId: `selected:${block.id}:${Date.now()}:${Math.random().toString(16).slice(2, 6)}`, block }
-      ]);
-      setAvailableBlocks((prev) => prev.filter((item) => item.id !== block.id));
+      addFromLibrary(block);
       setActiveDragBlock(null);
       return;
     }
@@ -260,9 +282,9 @@ const App = (): JSX.Element => {
   return (
     <main className="icloud-page">
       <header className="icloud-topbar">
-        <div>
-          <div className="lb-title">License Builder</div>
-          <div className="lb-subtitle">Конструктор лицензионных договоров</div>
+        <div className="brand-wrap">
+          <LogoMark />
+          <div className="lb-title">License Constructor</div>
         </div>
         <div className="top-actions">
           <button type="button" className="btn-ghost">
@@ -286,7 +308,7 @@ const App = (): JSX.Element => {
             <div className="section-label">Блоки</div>
             <div className="scroll-list">
               {availableBlocks.map((block) => (
-                <AvailableRow key={block.id} block={block} />
+                <AvailableRow key={block.id} block={block} onAdd={addFromLibrary} />
               ))}
             </div>
 
@@ -345,16 +367,37 @@ const App = (): JSX.Element => {
             </div>
 
             <div className="docs-canvas">
-              <article className="docs-paper" style={previewTextStyle}>
-                <p className="preview-line">{previewParts.header}</p>
-                {previewParts.bodyLines.map((line) => (
-                  <div key={line.title}>
-                    <p className="preview-line"><strong>{line.title}</strong></p>
-                    <p className="preview-line">{line.text}</p>
-                  </div>
-                ))}
-                <p className="preview-line">{previewParts.footer}</p>
-              </article>
+              {(() => {
+                const lines = [previewParts.header, ...previewParts.bodyLines.flatMap((line) => [line.title, line.text]), previewParts.footer];
+                const pages: string[][] = [];
+                const maxCharsPerPage = 1800;
+                let current: string[] = [];
+                let count = 0;
+
+                lines.forEach((line) => {
+                  const nextCount = count + line.length;
+                  if (nextCount > maxCharsPerPage && current.length > 0) {
+                    pages.push(current);
+                    current = [line];
+                    count = line.length;
+                  } else {
+                    current.push(line);
+                    count = nextCount;
+                  }
+                });
+
+                if (current.length > 0) {
+                  pages.push(current);
+                }
+
+                return pages.map((pageLines, pageIndex) => (
+                  <article key={pageIndex} className="docs-paper" style={previewTextStyle}>
+                    {pageLines.map((line, index) => (
+                      <p key={`${pageIndex}-${index}`} className="preview-line">{line}</p>
+                    ))}
+                  </article>
+                ));
+              })()}
             </div>
           </section>
         </div>
@@ -392,6 +435,15 @@ const App = (): JSX.Element => {
                 </label>
               ))}
             </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={numberingEnabled}
+                onChange={(event) => setNumberingEnabled(event.target.checked)}
+              />
+              Включить нумерацию пунктов
+            </label>
+
             <div className="popup-actions">
               <button className="btn-primary" type="button" onClick={() => setShowVarsPopup(false)}>Готово</button>
             </div>
