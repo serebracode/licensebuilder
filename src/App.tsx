@@ -62,17 +62,27 @@ const getApi = (): LicenseBuilderApi => {
 const replaceVars = (text: string, values: Record<string, string>): string =>
   text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, name: string) => values[name] || `{{${name}}}`);
 
+const DragDots = (): JSX.Element => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+    <circle cx="3.5" cy="3" r="1" fill="currentColor" />
+    <circle cx="8.5" cy="3" r="1" fill="currentColor" />
+    <circle cx="3.5" cy="6" r="1" fill="currentColor" />
+    <circle cx="8.5" cy="6" r="1" fill="currentColor" />
+    <circle cx="3.5" cy="9" r="1" fill="currentColor" />
+    <circle cx="8.5" cy="9" r="1" fill="currentColor" />
+  </svg>
+);
+
 const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.Element => {
   const { setNodeRef, isOver } = useDroppable({ id });
-
   return (
-    <div ref={setNodeRef} className={`drop-zone ${isOver ? 'drop-zone-over' : ''}`}>
+    <div ref={setNodeRef} className={`drop-zone ${isOver ? 'is-over' : ''}`}>
       {children}
     </div>
   );
 };
 
-const AvailableDraggable = ({ block }: { block: LicenseBlock }): JSX.Element => {
+const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `available:${block.id}`
   });
@@ -80,23 +90,25 @@ const AvailableDraggable = ({ block }: { block: LicenseBlock }): JSX.Element => 
   return (
     <div
       ref={setNodeRef}
+      className="block-row"
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.6 : 1
+        opacity: isDragging ? 0.5 : 1
       }}
-      className="card modern-card"
       {...attributes}
       {...listeners}
     >
-      <h3>{block.title}</h3>
-      <p className="compact-line">{block.description}</p>
-      <p className="muted tiny">Перетащите в нижнюю зону сборки</p>
+      <span className="drag-handle"><DragDots /></span>
+      <div className="block-info">
+        <div className="block-name">{block.title}</div>
+        <div className="block-desc">{block.description}</div>
+      </div>
     </div>
   );
 };
 
-const SelectedSortable = ({ item }: { item: SelectedBlock }): JSX.Element => {
+const AssemblyRow = ({ item }: { item: SelectedBlock }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.instanceId
   });
@@ -104,25 +116,30 @@ const SelectedSortable = ({ item }: { item: SelectedBlock }): JSX.Element => {
   return (
     <div
       ref={setNodeRef}
+      className="block-row"
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.55 : 1
+        opacity: isDragging ? 0.5 : 1
       }}
-      className="card modern-card"
       {...attributes}
       {...listeners}
     >
-      <h3>{item.block.title}</h3>
-      <p className="compact-line">{item.block.description}</p>
+      <span className="drag-handle"><DragDots /></span>
+      <div className="block-info">
+        <div className="block-name">{item.block.title}</div>
+        <div className="block-desc">{item.block.description}</div>
+      </div>
     </div>
   );
 };
 
 const App = (): JSX.Element => {
   const api = useMemo(() => getApi(), []);
-  const [error, setError] = useState('');
+  const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor));
+
   const [settings, setSettings] = useState<WorkspaceSettings>({});
+  const [error, setError] = useState('');
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [variables, setVariables] = useState<Record<string, string>>({
     company_name: '',
@@ -132,12 +149,8 @@ const App = (): JSX.Element => {
   const isBrowserPreview = typeof window !== 'undefined' && !window.licenseBuilder;
   const hasWorkspace = Boolean(settings.workspacePath);
 
-  const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor));
-
   useEffect(() => {
-    void api.getSettings().then((saved) => {
-      setSettings(saved);
-    });
+    void api.getSettings().then((saved) => setSettings(saved));
   }, [api]);
 
   const configureWorkspace = async (): Promise<void> => {
@@ -161,22 +174,30 @@ const App = (): JSX.Element => {
 
   const requiredVariables = useMemo(() => {
     const vars = new Set<string>(['company_name', 'contract_date']);
-    selectedBlocks.forEach(({ block }) => block.variables.forEach((item) => vars.add(item)));
+    selectedBlocks.forEach(({ block }) => block.variables.forEach((name) => vars.add(name)));
     return [...vars];
   }, [selectedBlocks]);
 
-  const previewText = useMemo(() => {
-    const parts = [replaceVars(TEST_FRAME.header, variables)];
-    selectedBlocks.forEach(({ block }, i) => {
-      parts.push(`\n${i + 1}. ${block.title}\n${replaceVars(block.body, variables)}`);
-    });
-    parts.push(`\n${replaceVars(TEST_FRAME.footer, variables)}`);
-    return parts.join('\n');
+  const previewParts = useMemo(() => {
+    const bodyLines = selectedBlocks.map(({ block }, i) => ({
+      title: `${i + 1}. ${block.title}`,
+      text: replaceVars(block.body, variables)
+    }));
+
+    return {
+      header: replaceVars(TEST_FRAME.header, variables),
+      bodyLines,
+      footer: replaceVars(TEST_FRAME.footer, variables)
+    };
   }, [selectedBlocks, variables]);
+
+  const charCount = useMemo(() => {
+    const body = previewParts.bodyLines.map((item) => `${item.title} ${item.text}`).join(' ');
+    return `${(previewParts.header + body + previewParts.footer).length} символ`;
+  }, [previewParts]);
 
   const onDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event;
-
     if (!over) {
       return;
     }
@@ -210,113 +231,107 @@ const App = (): JSX.Element => {
   };
 
   return (
-    <main className="app-shell split-layout modern-bg">
-      <header className="builder-topbar glass">
-        <div>
-          <h1>License Builder</h1>
-          <p className="muted">Конструктор лицензионных договоров</p>
-        </div>
-        <div className="topbar-actions">
-          <span className={`pill ${hasWorkspace ? 'pill-ok' : 'pill-warn'}`}>
-            {hasWorkspace ? `Workspace: ${settings.workspacePath}` : 'Workspace не настроен'}
-          </span>
-          <button type="button" onClick={configureWorkspace}>
-            Настроить папки
-          </button>
-        </div>
-      </header>
+    <main className="page">
+      <div className="lb-root">
+        <header className="lb-header">
+          <div>
+            <div className="lb-title">License Builder</div>
+            <div className="lb-subtitle">Конструктор лицензионных договоров</div>
+          </div>
+          <div className="lb-header-actions">
+            <button type="button" className="btn-ghost">
+              {hasWorkspace ? `Workspace: ${settings.workspacePath}` : 'Workspace не настроен'}
+            </button>
+            <button type="button" className="btn-primary" onClick={configureWorkspace}>
+              Настроить папки
+            </button>
+          </div>
+        </header>
 
-      {isBrowserPreview ? (
-        <p className="preview-badge panel-inline">
-          Browser preview: UI-режим без нативного доступа к файловой системе macOS.
-        </p>
-      ) : null}
+        {isBrowserPreview ? (
+          <div className="lb-notice">Browser preview — нет доступа к файловой системе macOS.</div>
+        ) : null}
+        {error ? <div className="lb-notice lb-notice-error">{error}</div> : null}
 
-      {error ? <p className="error panel-inline">{error}</p> : null}
-
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <section className="main-split">
-          <div className="left-half">
-            <article className="half-panel glass">
-              <h2>Блоки в наличии</h2>
-              {!hasWorkspace ? (
-                <div className="callout">
-                  <p>Подключите workspace, чтобы в будущем загружать реальные JSON-блоки.</p>
-                  <button type="button" onClick={configureWorkspace}>Настроить</button>
-                </div>
-              ) : null}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <div className="lb-body">
+            <section className="lb-left">
+              <div className="section-label">Блоки</div>
               <SortableContext
                 items={TEST_BLOCKS.map((block) => `available:${block.id}`)}
                 strategy={verticalListSortingStrategy}
               >
-                <DropZone id="library-zone">
-                  <div className="list-stack">
-                    {TEST_BLOCKS.map((block) => (
-                      <AvailableDraggable key={block.id} block={block} />
-                    ))}
-                  </div>
-                </DropZone>
+                <div className="scroll-list">
+                  {TEST_BLOCKS.map((block) => (
+                    <AvailableRow key={block.id} block={block} />
+                  ))}
+                </div>
               </SortableContext>
-            </article>
 
-            <article className="half-panel glass">
-              <h2>Зона сборки (Drag & Drop)</h2>
-              <SortableContext
-                items={selectedBlocks.map((item) => item.instanceId)}
-                strategy={verticalListSortingStrategy}
-              >
-                <DropZone id="assembly-zone">
-                  <div className="list-stack">
-                    {selectedBlocks.length === 0 ? (
-                      <div className="callout subtle">Перетащите блоки из верхней области сюда.</div>
-                    ) : null}
-                    {selectedBlocks.map((item) => (
-                      <SelectedSortable key={item.instanceId} item={item} />
-                    ))}
+              <div className="column-divider" />
+              <div className="section-label">Сборка</div>
+
+              <div className="assembly-section">
+                <SortableContext
+                  items={selectedBlocks.map((item) => item.instanceId)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <DropZone id="assembly-zone">
+                    <div className="scroll-list">
+                      {selectedBlocks.length === 0 ? (
+                        <div className="drop-hint">Перетащите блоки сюда</div>
+                      ) : null}
+                      {selectedBlocks.map((item) => (
+                        <AssemblyRow key={item.instanceId} item={item} />
+                      ))}
+                    </div>
+                  </DropZone>
+                </SortableContext>
+              </div>
+            </section>
+
+            <section className="lb-right">
+              <div className="preview-area">
+                <h2>Предпросмотр</h2>
+                <p className="preview-line">{previewParts.header}</p>
+                {previewParts.bodyLines.map((line) => (
+                  <div key={line.title}>
+                    <p className="preview-line"><strong>{line.title}</strong></p>
+                    <p className="preview-line">{line.text}</p>
                   </div>
-                </DropZone>
-              </SortableContext>
-            </article>
+                ))}
+                <p className="preview-line">{previewParts.footer}</p>
+              </div>
+
+              <footer className="lb-footer">
+                <div className="vars-grid">
+                  {requiredVariables.map((name) => (
+                    <label key={name}>
+                      {name}
+                      <input
+                        className="field-input"
+                        type="text"
+                        value={variables[name] ?? ''}
+                        onChange={(event) =>
+                          setVariables((prev) => ({
+                            ...prev,
+                            [name]: event.target.value
+                          }))
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="export-actions">
+                  <span className="char-count">{charCount}</span>
+                  <button type="button" className="btn-export" disabled={!hasWorkspace}>Экспорт .docx</button>
+                  <button type="button" className="btn-export" disabled={!hasWorkspace}>Экспорт .pdf</button>
+                </div>
+              </footer>
+            </section>
           </div>
-
-          <article className="right-half glass">
-            <h2>Предпросмотр</h2>
-            <div className="preview-paper">
-              <p>{replaceVars(TEST_FRAME.header, variables)}</p>
-              {selectedBlocks.map(({ block }, i) => (
-                <section key={block.id + i}>
-                  <h3>{i + 1}. {block.title}</h3>
-                  <p>{replaceVars(block.body, variables)}</p>
-                </section>
-              ))}
-              <p>{replaceVars(TEST_FRAME.footer, variables)}</p>
-            </div>
-
-            <div className="vars-grid">
-              {requiredVariables.map((name) => (
-                <label key={name}>
-                  {name}
-                  <input
-                    value={variables[name] ?? ''}
-                    onChange={(event) =>
-                      setVariables((prev) => ({
-                        ...prev,
-                        [name]: event.target.value
-                      }))
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-
-            <div className="row-actions">
-              <button type="button" disabled={!hasWorkspace}>Экспорт .docx</button>
-              <button type="button" disabled={!hasWorkspace}>Экспорт .pdf</button>
-            </div>
-            <p className="muted tiny">Текст preview: {previewText.length} символов</p>
-          </article>
-        </section>
-      </DndContext>
+        </DndContext>
+      </div>
     </main>
   );
 };
