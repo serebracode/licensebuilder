@@ -375,24 +375,6 @@ const App = (): JSX.Element => {
     return lines;
   }, [frameBlocks, selectedBlocks, variables, frame]);
 
-  // Simple character-count pagination
-  const pages = useMemo(() => {
-    const result: PreviewLine[][] = [];
-    const MAX = 2000;
-    let page: PreviewLine[] = [], count = 0;
-    for (const line of previewLines) {
-      if (line.text.length + count > MAX && page.length > 0) {
-        result.push(page);
-        page = [line];
-        count = line.text.length;
-      } else {
-        page.push(line);
-        count += line.text.length;
-      }
-    }
-    if (page.length > 0) result.push(page);
-    return result;
-  }, [previewLines]);
 
   const removeFromAssembly = (instanceId: string): void => {
     setSelectedBlocks(prev => {
@@ -524,26 +506,21 @@ const App = (): JSX.Element => {
             })}
 
             <div className="docs-canvas" style={{ display: activeTab === 'preview' ? 'flex' : 'none' }}>
-              {pages.map((pageLines, pi) => (
-                <article key={pi} className="docs-paper" style={paperStyle}>
-                  {pageLines.map((line, li) => (
+              <article className="docs-paper" style={paperStyle}>
+                {previewLines.length === 0
+                  ? <p className="preview-empty">Нет данных для предпросмотра</p>
+                  : previewLines.map((line, i) => (
                     <p
-                      key={`${pi}-${li}`}
+                      key={i}
                       className={
                         line.type === 'heading' ? 'preview-line preview-heading' :
                         line.type === 'subheading' ? 'preview-line preview-subheading' :
                         'preview-line'
                       }
                     >{line.text}</p>
-                  ))}
-                  <div className="page-number" style={{ fontSize: `${fontSize - 1}pt` }}>{pi + 1}</div>
-                </article>
-              ))}
-              {pages.length === 0 && (
-                <article className="docs-paper" style={paperStyle}>
-                  <p className="preview-empty">Нет данных для предпросмотра</p>
-                </article>
-              )}
+                  ))
+                }
+              </article>
               {/* Requisites sheet */}
               <article className="docs-paper docs-paper--reqs" style={paperStyle}>
                 <div className="reqs-columns">
