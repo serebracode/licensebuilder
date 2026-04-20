@@ -191,23 +191,29 @@ body {
   margin-right: auto;
 }
 
-.editor-tools select {
-  font-size: 12px;
-  border: 0.5px solid #d8d8dd;
-  border-radius: 7px;
-  padding: 4px 8px;
-  background: #fff;
-}
-
-.btn-tool {
-  min-width: 28px;
+.editor-tools select,
+.btn-tool,
+.preview-toolbar .btn-ghost {
   height: 28px;
   border: 0.5px solid #d8d8dd;
   border-radius: 7px;
   background: #fff;
   color: #444;
   font-size: 12px;
+}
+
+.editor-tools select {
+  padding: 0 8px;
+}
+
+.btn-tool {
+  min-width: 28px;
+  padding: 0 8px;
   cursor: pointer;
+}
+
+.preview-toolbar .btn-ghost {
+  padding: 0 10px;
 }
 
 .btn-tool.active {

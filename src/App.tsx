@@ -90,10 +90,8 @@ const AvailableRow = ({ block }: { block: LicenseBlock }): JSX.Element => {
       ref={setNodeRef}
       className="block-row"
       style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }}
-      {...attributes}
-      {...listeners}
     >
-      <span className="drag-handle"><DragDots /></span>
+      <span className="drag-handle" {...attributes} {...listeners}><DragDots /></span>
       <div className="block-info">
         <div className="block-name">{block.title}</div>
         <div className="block-desc">{block.description}</div>
@@ -118,10 +116,8 @@ const AssemblyRow = ({
       ref={setNodeRef}
       className="block-row"
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      {...attributes}
-      {...listeners}
     >
-      <span className="drag-handle"><DragDots /></span>
+      <span className="drag-handle" {...attributes} {...listeners}><DragDots /></span>
       <div className="block-info">
         <div className="block-name">{item.block.title}</div>
         <div className="block-desc">{item.block.description}</div>
@@ -157,6 +153,7 @@ const App = (): JSX.Element => {
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
+  const [fontSize, setFontSize] = useState(13);
 
   const hasWorkspace = Boolean(settings.workspacePath);
 
@@ -256,7 +253,8 @@ const App = (): JSX.Element => {
     fontFamily,
     fontWeight: isBold ? 700 : 400,
     fontStyle: isItalic ? 'italic' : 'normal',
-    textAlign
+    textAlign,
+    fontSize: `${fontSize}px`
   } as const;
 
   return (
@@ -317,6 +315,14 @@ const App = (): JSX.Element => {
                   <option>Arial</option>
                   <option>Helvetica</option>
                   <option>Georgia</option>
+                </select>
+                <select value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))}>
+                  <option value={11}>11</option>
+                  <option value={12}>12</option>
+                  <option value={13}>13</option>
+                  <option value={14}>14</option>
+                  <option value={16}>16</option>
+                  <option value={18}>18</option>
                 </select>
                 <button type="button" className={`btn-tool ${isBold ? 'active' : ''}`} onClick={() => setIsBold((v) => !v)}>B</button>
                 <button type="button" className={`btn-tool ${isItalic ? 'active' : ''}`} onClick={() => setIsItalic((v) => !v)}>I</button>
