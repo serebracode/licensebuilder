@@ -3,7 +3,9 @@ export type LicenseBlock = {
   title: string;
   description: string;
   body: string;
+  paragraphs?: string[];  // if present, used instead of body for numbered output
   variables: string[];
+  articleNum?: number;    // auto-assigned during assembly
 };
 
 export const TEST_BLOCKS: LicenseBlock[] = [
