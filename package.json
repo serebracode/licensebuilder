@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
+  "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "vite",
@@ -16,6 +17,7 @@
     "verify:workspace": "node scripts/verify-workspace-init.mjs",
     "dev:web": "vite",
     "build:web": "vite build"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -13,4 +13,8 @@ contextBridge.exposeInMainWorld('licenseBuilder', {
   selectDirectory: () => ipcRenderer.invoke('dialog:select-directory') as Promise<string | null>,
   initWorkspace: (payload: InitWorkspacePayload) =>
     ipcRenderer.invoke('workspace:init', payload) as Promise<Record<string, string>>
+import { contextBridge } from 'electron';
+
+contextBridge.exposeInMainWorld('licenseBuilder', {
+  platform: process.platform
 });

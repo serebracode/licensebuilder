@@ -20,6 +20,8 @@ type AppSettings = {
 const settingsStore = new Store<AppSettings>({
   name: 'settings'
 });
+import { app, BrowserWindow } from 'electron';
+import path from 'node:path';
 
 const isDev = !app.isPackaged;
 
@@ -31,6 +33,7 @@ const createWindow = (): void => {
     minHeight: 700,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -91,6 +94,7 @@ app.whenReady().then(() => {
     return settings;
   });
 
+app.whenReady().then(() => {
   createWindow();
 
   app.on('activate', () => {
