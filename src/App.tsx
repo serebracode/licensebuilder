@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -15,6 +15,22 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TEST_BLOCKS, TEST_FRAME, type LicenseBlock } from './data.test-blocks';
+import { parseDocx } from './docx-parser';
+
+const STORAGE_KEY = 'lb_blocks_v1';
+
+function loadStoredBlocks(): LicenseBlock[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as LicenseBlock[]) : TEST_BLOCKS;
+  } catch {
+    return TEST_BLOCKS;
+  }
+}
+
+function saveBlocks(blocks: LicenseBlock[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks));
+}
 
 type WorkspaceSettings = {
   workspacePath?: string;
@@ -157,7 +173,9 @@ const App = (): JSX.Element => {
 
   const [settings, setSettings] = useState<WorkspaceSettings>({});
   const [error, setError] = useState('');
-  const [availableBlocks, setAvailableBlocks] = useState<LicenseBlock[]>(TEST_BLOCKS);
+  const [importStatus, setImportStatus] = useState('');
+  const [availableBlocks, setAvailableBlocks] = useState<LicenseBlock[]>(loadStoredBlocks);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [activeDragBlock, setActiveDragBlock] = useState<LicenseBlock | null>(null);
   const [variables, setVariables] = useState<Record<string, string>>({
@@ -194,6 +212,32 @@ const App = (): JSX.Element => {
   };
 
 
+  const handleImportFile = async (file: File): Promise<void> => {
+    setImportStatus('Парсинг…');
+    try {
+      const { licenseTitle, sections } = await parseDocx(file);
+      const newBlocks: LicenseBlock[] = sections.map((sec, i) => ({
+        id: sec.id,
+        title: sec.heading,
+        description: licenseTitle + (sections.length > 1 ? ` · раздел ${i + 1}` : ''),
+        body: sec.paragraphs.join('\n\n'),
+        paragraphs: sec.paragraphs,
+        variables: [],
+      }));
+      setAvailableBlocks(prev => {
+        const existingIds = new Set(prev.map(b => b.id));
+        const fresh = newBlocks.filter(b => !existingIds.has(b.id));
+        const merged = [...prev, ...fresh];
+        saveBlocks(merged);
+        return merged;
+      });
+      setImportStatus(`Импортировано: ${newBlocks.length} разделов из «${licenseTitle}»`);
+      setTimeout(() => setImportStatus(''), 4000);
+    } catch (e) {
+      setImportStatus('Ошибка парсинга: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
   const addFromLibrary = (block: LicenseBlock): void => {
     setSelectedBlocks((prev) => [
       ...prev,
@@ -208,10 +252,21 @@ const App = (): JSX.Element => {
   }, [selectedBlocks]);
 
   const previewParts = useMemo(() => {
-    const bodyLines = selectedBlocks.map(({ block }, i) => ({
-      title: numberingEnabled ? `${i + 1}. ${block.title}` : block.title,
-      text: replaceVars(block.body, variables)
-    }));
+    const bodyLines = selectedBlocks.flatMap(({ block }, i) => {
+      const artNum = i + 1;
+      const heading = numberingEnabled ? `СТАТЬЯ ${artNum}. ${block.title}` : block.title;
+      if (block.paragraphs && block.paragraphs.length > 0) {
+        const paras = block.paragraphs.map((p, j) => ({
+          isHeading: false,
+          text: numberingEnabled ? `${artNum}.${j + 1} ${replaceVars(p, variables)}` : replaceVars(p, variables),
+        }));
+        return [{ isHeading: true, text: heading }, ...paras];
+      }
+      return [
+        { isHeading: true, text: heading },
+        { isHeading: false, text: replaceVars(block.body, variables) },
+      ];
+    });
     return {
       header: replaceVars(TEST_FRAME.header, variables),
       bodyLines,
@@ -290,11 +345,26 @@ const App = (): JSX.Element => {
           <button type="button" className="btn-ghost">
             {hasWorkspace ? `Workspace: ${settings.workspacePath}` : 'Workspace не настроен'}
           </button>
+          <button type="button" className="btn-ghost" onClick={() => fileInputRef.current?.click()}>
+            Импорт .docx
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) void handleImportFile(file);
+              e.target.value = '';
+            }}
+          />
           <button type="button" className="btn-primary" onClick={configureWorkspace}>Настроить папки</button>
         </div>
       </header>
 
       {error ? <div className="notice error">{error}</div> : null}
+      {importStatus ? <div className="notice">{importStatus}</div> : null}
 
       <DndContext
         sensors={sensors}
@@ -368,32 +438,47 @@ const App = (): JSX.Element => {
 
             <div className="docs-canvas">
               {(() => {
-                const lines = [previewParts.header, ...previewParts.bodyLines.flatMap((line) => [line.title, line.text]), previewParts.footer];
-                const pages: string[][] = [];
-                const maxCharsPerPage = 1800;
-                let current: string[] = [];
+                type PreviewLine = { text: string; isHeading: boolean };
+                const allLines: PreviewLine[] = [
+                  { text: previewParts.header, isHeading: false },
+                  ...previewParts.bodyLines,
+                  { text: previewParts.footer, isHeading: false },
+                ];
+
+                // Paginate by char count
+                const pages: PreviewLine[][] = [];
+                const MAX = 1800;
+                let page: PreviewLine[] = [];
                 let count = 0;
-
-                lines.forEach((line) => {
-                  const nextCount = count + line.length;
-                  if (nextCount > maxCharsPerPage && current.length > 0) {
-                    pages.push(current);
-                    current = [line];
-                    count = line.length;
+                for (const line of allLines) {
+                  if (line.text.length + count > MAX && page.length > 0) {
+                    pages.push(page);
+                    page = [line];
+                    count = line.text.length;
                   } else {
-                    current.push(line);
-                    count = nextCount;
+                    page.push(line);
+                    count += line.text.length;
                   }
-                });
+                }
+                if (page.length > 0) pages.push(page);
 
-                if (current.length > 0) {
-                  pages.push(current);
+                if (pages.length === 0) {
+                  return (
+                    <article className="docs-paper" style={previewTextStyle}>
+                      <p className="preview-empty">Добавьте блоки в сборку, чтобы увидеть предпросмотр</p>
+                    </article>
+                  );
                 }
 
-                return pages.map((pageLines, pageIndex) => (
-                  <article key={pageIndex} className="docs-paper" style={previewTextStyle}>
-                    {pageLines.map((line, index) => (
-                      <p key={`${pageIndex}-${index}`} className="preview-line">{line}</p>
+                return pages.map((pageLines, pi) => (
+                  <article key={pi} className="docs-paper" style={previewTextStyle}>
+                    {pageLines.map((line, li) => (
+                      <p
+                        key={`${pi}-${li}`}
+                        className={`preview-line${line.isHeading ? ' preview-heading' : ''}`}
+                      >
+                        {line.text}
+                      </p>
                     ))}
                   </article>
                 ));
