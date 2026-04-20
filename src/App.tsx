@@ -246,6 +246,7 @@ const App = (): JSX.Element => {
   const [availableBlocks, setAvailableBlocks] = useState<LicenseBlock[]>(loadModuleBlocks);
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [activeDragBlock, setActiveDragBlock] = useState<LicenseBlock | null>(null);
+  const [leftTab, setLeftTab] = useState<'frame' | 'assembly'>('frame');
   const [activeTab, setActiveTab] = useState<'preview' | string>('preview');
   const [openTabIds, setOpenTabIds] = useState<string[]>([]);
   const [variables, setVariables] = useState<Record<string, string>>({ company_name: '', contract_date: '' });
@@ -462,34 +463,44 @@ const App = (): JSX.Element => {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
         <div className="layout">
           <section className="left-pane">
-            <div className="left-pane-library">
-              {/* РАМКА */}
-              <div className="section-header">
-                <span className="section-label">Рамка</span>
-                <button type="button" className="btn-add" onClick={addFrameBlock}>+ Добавить</button>
-              </div>
-              {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
-              <div className="h-divider" />
-              {/* МОДУЛИ */}
-              <div className="section-header">
-                <span className="section-label">Модули</span>
-                <button type="button" className="btn-add" onClick={addModuleBlock}>+ Добавить</button>
-              </div>
-              {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
+            <div className="left-tab-bar">
+              <button type="button" className={`left-tab${leftTab === 'frame' ? ' left-tab--active' : ''}`} onClick={() => setLeftTab('frame')}>Рамка</button>
+              <button type="button" className={`left-tab${leftTab === 'assembly' ? ' left-tab--active' : ''}`} onClick={() => setLeftTab('assembly')}>Сборка</button>
             </div>
 
-            <div className="h-divider" />
-            <div className="section-label">Сборка</div>
-            <div className="assembly-wrap">
-              <SortableContext items={selectedBlocks.map(item => item.instanceId)} strategy={verticalListSortingStrategy}>
-                <DropZone id="assembly-zone">
-                  <div className="scroll-list">
-                    {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите модули сюда</div> : null}
-                    {selectedBlocks.map(item => <AssemblyRow key={item.instanceId} item={item} onDelete={removeFromAssembly} onOpenEditor={openBlockEditor} />)}
+            {leftTab === 'frame' && (
+              <div className="left-pane-library">
+                <div className="section-header">
+                  <span className="section-label">Статьи рамки</span>
+                  <button type="button" className="btn-add" onClick={addFrameBlock}>+ Добавить</button>
+                </div>
+                {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
+              </div>
+            )}
+
+            {leftTab === 'assembly' && (
+              <>
+                <div className="left-pane-library">
+                  <div className="section-header">
+                    <span className="section-label">Модули</span>
+                    <button type="button" className="btn-add" onClick={addModuleBlock}>+ Добавить</button>
                   </div>
-                </DropZone>
-              </SortableContext>
-            </div>
+                  {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
+                </div>
+                <div className="h-divider" />
+                <div className="section-label">Сборка</div>
+                <div className="assembly-wrap">
+                  <SortableContext items={selectedBlocks.map(item => item.instanceId)} strategy={verticalListSortingStrategy}>
+                    <DropZone id="assembly-zone">
+                      <div className="scroll-list">
+                        {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите модули сюда</div> : null}
+                        {selectedBlocks.map(item => <AssemblyRow key={item.instanceId} item={item} onDelete={removeFromAssembly} onOpenEditor={openBlockEditor} />)}
+                      </div>
+                    </DropZone>
+                  </SortableContext>
+                </div>
+              </>
+            )}
           </section>
 
           <section className="right-pane">

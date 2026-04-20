@@ -76,6 +76,34 @@ body {
   min-height: 80px;
 }
 
+/* ── Left pane tabs ── */
+
+.left-tab-bar {
+  display: flex;
+  border-bottom: 0.5px solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+.left-tab {
+  flex: 1;
+  height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+
+.left-tab:hover { background: #f7f7f8; color: #333; }
+
+.left-tab--active {
+  color: #111;
+  border-bottom: 2px solid #111;
+  margin-bottom: -0.5px;
+}
+
 /* Section header with label + add button */
 .section-header {
   display: flex;
