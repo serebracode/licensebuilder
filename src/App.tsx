@@ -17,45 +17,15 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { TEST_BLOCKS, TEST_FRAME, type LicenseBlock } from './data.test-blocks';
+import {
+  loadFrameBlocks, saveFrameBlocks,
+  loadModuleBlocks, saveModuleBlocks,
+  FRAME_DEFAULTS, type LicenseBlock
+} from './data.test-blocks';
 import { parseDocx } from './docx-parser';
 
-const STORAGE_KEY = 'lb_blocks_v1';
-
-function loadStoredBlocks(): LicenseBlock[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as LicenseBlock[]) : TEST_BLOCKS;
-  } catch {
-    return TEST_BLOCKS;
-  }
-}
-
-function saveBlocks(blocks: LicenseBlock[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks));
-}
-
-type LicenseBuilderApi = {
-  getSettings: () => Promise<Record<string, string>>;
-  selectDirectory: () => Promise<string | null>;
-  initWorkspace: (payload: { basePath: string; mode: 'create' | 'useExisting' }) => Promise<Record<string, string>>;
-};
-
 type SelectedBlock = { instanceId: string; block: LicenseBlock };
-
-const getApi = (): LicenseBuilderApi => {
-  if (typeof window !== 'undefined' && window.licenseBuilder) return window.licenseBuilder;
-  return {
-    getSettings: async () => ({}),
-    selectDirectory: async () => null,
-    initWorkspace: async ({ basePath }) => ({
-      workspacePath: basePath,
-      blocksPath: `${basePath}/blocks`,
-      templatesPath: `${basePath}/templates`,
-      exportsPath: `${basePath}/exports`
-    })
-  };
-};
+type PreviewLine = { text: string; type: 'heading' | 'subheading' | 'para' | 'text' };
 
 const replaceVars = (text: string, values: Record<string, string>): string =>
   text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, name: string) => values[name] || `{{${name}}}`);
@@ -98,6 +68,15 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
     </div>
   );
 };
+
+const FrameRow = ({ block, onOpenEditor }: { block: LicenseBlock; onOpenEditor: (id: string) => void }): JSX.Element => (
+  <div className="block-row" onClick={() => onOpenEditor(block.id)}>
+    <div className="block-info">
+      <div className="block-name">{block.title}</div>
+      <div className="block-desc">{block.description}</div>
+    </div>
+  </div>
+);
 
 const AvailableRow = ({ block, onOpenEditor }: { block: LicenseBlock; onOpenEditor: (id: string) => void }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `available:${block.id}` });
@@ -178,7 +157,6 @@ function BlockEditor({
     content: bodyToHtml(block),
   });
 
-  // Listen for content changes to track dirty state
   useEffect(() => {
     if (!editor) return;
     const handler = () => markDirty();
@@ -187,7 +165,6 @@ function BlockEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
-  // On unmount (tab switch away), clear dirty so closing an inactive tab never prompts
   useEffect(() => {
     const id = block.id;
     return () => {
@@ -263,10 +240,10 @@ function BlockEditor({
 }
 
 const App = (): JSX.Element => {
-  const api = useMemo(() => getApi(), []);
   const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor));
 
-  const [availableBlocks, setAvailableBlocks] = useState<LicenseBlock[]>(loadStoredBlocks);
+  const [frameBlocks, setFrameBlocks] = useState<LicenseBlock[]>(loadFrameBlocks);
+  const [availableBlocks, setAvailableBlocks] = useState<LicenseBlock[]>(loadModuleBlocks);
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [activeDragBlock, setActiveDragBlock] = useState<LicenseBlock | null>(null);
   const [activeTab, setActiveTab] = useState<'preview' | string>('preview');
@@ -277,12 +254,14 @@ const App = (): JSX.Element => {
   const [fontFamily, setFontFamily] = useState('Times New Roman');
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
-  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
-  const [fontSize, setFontSize] = useState(13);
-  const [numberingEnabled, setNumberingEnabled] = useState(true);
-  const [frame, setFrame] = useState({ header: TEST_FRAME.header, footer: TEST_FRAME.footer });
+  const [fontSize, setFontSize] = useState(11);
+  const [frame, setFrame] = useState({
+    header: FRAME_DEFAULTS.header,
+    article3Title: FRAME_DEFAULTS.article3Title,
+    reqLeft: FRAME_DEFAULTS.reqLeft,
+    reqRight: FRAME_DEFAULTS.reqRight,
+  });
 
-  // Tracks which open tabs have unsaved edits (managed via ref to avoid re-renders)
   const dirtyTabsRef = useRef(new Set<string>());
 
   const handleDirtyChange = useCallback((id: string, dirty: boolean) => {
@@ -306,16 +285,48 @@ const App = (): JSX.Element => {
   };
 
   const findBlock = (id: string): LicenseBlock | undefined =>
-    availableBlocks.find(b => b.id === id) ?? selectedBlocks.find(s => s.block.id === id)?.block;
+    frameBlocks.find(b => b.id === id)
+    ?? availableBlocks.find(b => b.id === id)
+    ?? selectedBlocks.find(s => s.block.id === id)?.block;
 
   const saveBlockEdit = (updated: LicenseBlock): void => {
-    setAvailableBlocks(prev => { const next = prev.map(b => b.id === updated.id ? updated : b); saveBlocks(next); return next; });
-    setSelectedBlocks(prev => prev.map(s => s.block.id === updated.id ? { ...s, block: updated } : s));
+    if (frameBlocks.some(b => b.id === updated.id)) {
+      setFrameBlocks(prev => { const next = prev.map(b => b.id === updated.id ? updated : b); saveFrameBlocks(next); return next; });
+    } else {
+      setAvailableBlocks(prev => { const next = prev.map(b => b.id === updated.id ? updated : b); saveModuleBlocks(next); return next; });
+      setSelectedBlocks(prev => prev.map(s => s.block.id === updated.id ? { ...s, block: updated } : s));
+    }
   };
 
   const addFromLibrary = (block: LicenseBlock): void => {
     setSelectedBlocks(prev => [...prev, { instanceId: `selected:${block.id}:${Date.now()}:${Math.random().toString(16).slice(2, 6)}`, block }]);
     setAvailableBlocks(prev => prev.filter(item => item.id !== block.id));
+  };
+
+  const addFrameBlock = (): void => {
+    const newBlock: LicenseBlock = {
+      id: `frame-custom-${Date.now()}`,
+      title: 'Новая статья',
+      description: 'Настраиваемая статья',
+      body: '',
+      paragraphs: [],
+      variables: [],
+    };
+    setFrameBlocks(prev => { const next = [...prev, newBlock]; saveFrameBlocks(next); return next; });
+    openBlockEditor(newBlock.id);
+  };
+
+  const addModuleBlock = (): void => {
+    const newBlock: LicenseBlock = {
+      id: `module-custom-${Date.now()}`,
+      title: 'Новый модуль',
+      description: 'Настраиваемый модуль',
+      body: '',
+      paragraphs: [],
+      variables: [],
+    };
+    setAvailableBlocks(prev => { const next = [...prev, newBlock]; saveModuleBlocks(next); return next; });
+    openBlockEditor(newBlock.id);
   };
 
   const requiredVariables = useMemo(() => {
@@ -324,29 +335,64 @@ const App = (): JSX.Element => {
     return [...vars];
   }, [selectedBlocks]);
 
-  const previewParts = useMemo(() => {
-    const bodyLines = selectedBlocks.flatMap(({ block }, i) => {
-      const artNum = i + 1;
-      const heading = numberingEnabled ? `СТАТЬЯ ${artNum}. ${block.title}` : block.title;
-      const paragraphs = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
-      if (paragraphs.length > 0) {
-        return [
-          { isHeading: true, text: heading },
-          ...paragraphs.map((p, j) => ({
-            isHeading: false,
-            text: numberingEnabled ? `${artNum}.${j + 1} ${replaceVars(p, variables)}` : replaceVars(p, variables),
-          }))
-        ];
-      }
-      const rawText = block.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      return [{ isHeading: true, text: heading }, { isHeading: false, text: replaceVars(rawText, variables) }];
+  const previewLines = useMemo((): PreviewLine[] => {
+    const lines: PreviewLine[] = [];
+
+    // Preamble / header
+    frame.header.trim().split('\n').forEach(line => {
+      if (line.trim()) lines.push({ text: replaceVars(line.trim(), variables), type: 'text' });
     });
-    return {
-      header: replaceVars(frame.header, variables),
-      bodyLines,
-      footer: replaceVars(frame.footer, variables)
+
+    const renderFrameArticle = (block: LicenseBlock, artNum: number) => {
+      lines.push({ text: `${artNum}. ${block.title}`, type: 'heading' });
+      const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
+      paras.forEach((p, j) => {
+        lines.push({ text: `${artNum}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
+      });
     };
-  }, [numberingEnabled, selectedBlocks, variables, frame]);
+
+    // Articles 1, 2
+    frameBlocks.slice(0, 2).forEach((block, i) => renderFrameArticle(block, i + 1));
+
+    // Article 3 – assembled from modules
+    lines.push({ text: `3. ${replaceVars(frame.article3Title, variables)}`, type: 'heading' });
+    if (selectedBlocks.length === 0) {
+      lines.push({ text: '(добавьте модули в сборку)', type: 'para' });
+    } else {
+      selectedBlocks.forEach(({ block }, si) => {
+        const sub = si + 1;
+        lines.push({ text: `3.${sub}. ${block.title}`, type: 'subheading' });
+        const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
+        paras.forEach((p, j) => {
+          lines.push({ text: `3.${sub}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
+        });
+      });
+    }
+
+    // Articles 4-9 (frameBlocks[2+])
+    frameBlocks.slice(2).forEach((block, i) => renderFrameArticle(block, i + 4));
+
+    return lines;
+  }, [frameBlocks, selectedBlocks, variables, frame]);
+
+  // Simple character-count pagination
+  const pages = useMemo(() => {
+    const result: PreviewLine[][] = [];
+    const MAX = 2000;
+    let page: PreviewLine[] = [], count = 0;
+    for (const line of previewLines) {
+      if (line.text.length + count > MAX && page.length > 0) {
+        result.push(page);
+        page = [line];
+        count = line.text.length;
+      } else {
+        page.push(line);
+        count += line.text.length;
+      }
+    }
+    if (page.length > 0) result.push(page);
+    return result;
+  }, [previewLines]);
 
   const removeFromAssembly = (instanceId: string): void => {
     setSelectedBlocks(prev => {
@@ -386,7 +432,12 @@ const App = (): JSX.Element => {
     setActiveDragBlock(null);
   };
 
-  const previewTextStyle = { fontFamily, fontWeight: isBold ? 700 : 400, fontStyle: isItalic ? 'italic' : 'normal', textAlign, fontSize: `${fontSize}px` } as const;
+  const paperStyle = {
+    fontFamily,
+    fontWeight: isBold ? 700 : 400,
+    fontStyle: isItalic ? 'italic' : 'normal',
+    fontSize: `${fontSize}px`,
+  } as const;
 
   return (
     <main className="icloud-page">
@@ -397,17 +448,29 @@ const App = (): JSX.Element => {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
         <div className="layout">
           <section className="left-pane">
-            <div className="section-label">Блоки</div>
-            <div className="scroll-list">
+            <div className="left-pane-library">
+              {/* РАМКА */}
+              <div className="section-header">
+                <span className="section-label">Рамка</span>
+                <button type="button" className="btn-add" onClick={addFrameBlock}>+ Добавить</button>
+              </div>
+              {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
+              <div className="h-divider" />
+              {/* МОДУЛИ */}
+              <div className="section-header">
+                <span className="section-label">Модули</span>
+                <button type="button" className="btn-add" onClick={addModuleBlock}>+ Добавить</button>
+              </div>
               {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
             </div>
+
             <div className="h-divider" />
             <div className="section-label">Сборка</div>
             <div className="assembly-wrap">
               <SortableContext items={selectedBlocks.map(item => item.instanceId)} strategy={verticalListSortingStrategy}>
                 <DropZone id="assembly-zone">
                   <div className="scroll-list">
-                    {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите блоки сюда</div> : null}
+                    {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите модули сюда</div> : null}
                     {selectedBlocks.map(item => <AssemblyRow key={item.instanceId} item={item} onDelete={removeFromAssembly} onOpenEditor={openBlockEditor} />)}
                   </div>
                 </DropZone>
@@ -461,34 +524,33 @@ const App = (): JSX.Element => {
             })}
 
             <div className="docs-canvas" style={{ display: activeTab === 'preview' ? 'flex' : 'none' }}>
-              {(() => {
-                type PL = { text: string; isHeading: boolean };
-                const allLines: PL[] = [
-                  { text: previewParts.header, isHeading: false },
-                  ...previewParts.bodyLines,
-                  { text: previewParts.footer, isHeading: false },
-                ];
-                const pages: PL[][] = [];
-                const MAX = 1800;
-                let page: PL[] = [], count = 0;
-                for (const line of allLines) {
-                  if (line.text.length + count > MAX && page.length > 0) { pages.push(page); page = [line]; count = line.text.length; }
-                  else { page.push(line); count += line.text.length; }
-                }
-                if (page.length > 0) pages.push(page);
-                if (pages.length === 0) return (
-                  <article className="docs-paper" style={previewTextStyle}>
-                    <p className="preview-empty">Добавьте блоки в сборку, чтобы увидеть предпросмотр</p>
-                  </article>
-                );
-                return pages.map((pageLines, pi) => (
-                  <article key={pi} className="docs-paper" style={previewTextStyle}>
-                    {pageLines.map((line, li) => (
-                      <p key={`${pi}-${li}`} className={`preview-line${line.isHeading ? ' preview-heading' : ''}`}>{line.text}</p>
-                    ))}
-                  </article>
-                ));
-              })()}
+              {pages.map((pageLines, pi) => (
+                <article key={pi} className="docs-paper" style={paperStyle}>
+                  {pageLines.map((line, li) => (
+                    <p
+                      key={`${pi}-${li}`}
+                      className={
+                        line.type === 'heading' ? 'preview-line preview-heading' :
+                        line.type === 'subheading' ? 'preview-line preview-subheading' :
+                        'preview-line'
+                      }
+                    >{line.text}</p>
+                  ))}
+                  <div className="page-number" style={{ fontSize: `${fontSize - 1}px` }}>{pi + 1}</div>
+                </article>
+              ))}
+              {pages.length === 0 && (
+                <article className="docs-paper" style={paperStyle}>
+                  <p className="preview-empty">Нет данных для предпросмотра</p>
+                </article>
+              )}
+              {/* Requisites sheet */}
+              <article className="docs-paper docs-paper--reqs" style={paperStyle}>
+                <div className="reqs-columns">
+                  <div className="reqs-col">{replaceVars(frame.reqLeft, variables)}</div>
+                  <div className="reqs-col">{replaceVars(frame.reqRight, variables)}</div>
+                </div>
+              </article>
             </div>
           </section>
         </div>
@@ -518,10 +580,6 @@ const App = (): JSX.Element => {
                 </label>
               ))}
             </div>
-            <label className="toggle-row">
-              <input type="checkbox" checked={numberingEnabled} onChange={e => setNumberingEnabled(e.target.checked)} />
-              Включить нумерацию пунктов
-            </label>
 
             <div className="popup-divider" />
             <h4 className="popup-section-title">Настройки документа</h4>
@@ -549,20 +607,12 @@ const App = (): JSX.Element => {
                   <button type="button" className={`btn-tool${isItalic ? ' active' : ''}`} onClick={() => setIsItalic(v => !v)}>I</button>
                 </div>
               </label>
-              <label>
-                Выравнивание
-                <div className="doc-settings-row">
-                  <button type="button" className={`btn-tool${textAlign === 'left' ? ' active' : ''}`} onClick={() => setTextAlign('left')}>⇤</button>
-                  <button type="button" className={`btn-tool${textAlign === 'center' ? ' active' : ''}`} onClick={() => setTextAlign('center')}>≡</button>
-                  <button type="button" className={`btn-tool${textAlign === 'right' ? ' active' : ''}`} onClick={() => setTextAlign('right')}>⇥</button>
-                </div>
-              </label>
             </div>
 
             <div className="popup-divider" />
             <h4 className="popup-section-title">Рамка договора</h4>
             <label className="popup-full-label">
-              Шапка (текст до статей)
+              Шапка договора
               <textarea
                 className="popup-textarea"
                 value={frame.header}
@@ -571,12 +621,30 @@ const App = (): JSX.Element => {
               />
             </label>
             <label className="popup-full-label">
-              Подвал (текст после статей)
+              Заголовок статьи 3
+              <input
+                className="popup-textarea"
+                style={{ padding: '6px 8px' }}
+                value={frame.article3Title}
+                onChange={e => setFrame(prev => ({ ...prev, article3Title: e.target.value }))}
+              />
+            </label>
+            <label className="popup-full-label">
+              Реквизиты — лицензиар
               <textarea
                 className="popup-textarea"
-                value={frame.footer}
-                onChange={e => setFrame(prev => ({ ...prev, footer: e.target.value }))}
-                rows={3}
+                value={frame.reqLeft}
+                onChange={e => setFrame(prev => ({ ...prev, reqLeft: e.target.value }))}
+                rows={5}
+              />
+            </label>
+            <label className="popup-full-label">
+              Реквизиты — лицензиат
+              <textarea
+                className="popup-textarea"
+                value={frame.reqRight}
+                onChange={e => setFrame(prev => ({ ...prev, reqRight: e.target.value }))}
+                rows={5}
               />
             </label>
 
