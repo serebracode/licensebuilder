@@ -12,12 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy
-} from '@dnd-kit/sortable';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TEST_BLOCKS, TEST_FRAME, type LicenseBlock } from './data.test-blocks';
 
@@ -78,13 +73,6 @@ const DragDots = (): JSX.Element => (
 
 const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.Element => {
   const { setNodeRef, isOver } = useDroppable({ id });
-
-  const previewTextStyle = {
-    fontFamily,
-    fontWeight: isBold ? 700 : 400,
-    fontStyle: isItalic ? 'italic' : 'normal',
-    textAlign
-  } as const;
   return (
     <div ref={setNodeRef} className={`drop-zone ${isOver ? 'is-over' : ''}`}>
       {children}
@@ -178,13 +166,11 @@ const App = (): JSX.Element => {
 
   const configureWorkspace = async (): Promise<void> => {
     setError('');
-
     try {
       const selectedPath = await api.selectDirectory();
       if (!selectedPath) {
         return;
       }
-
       const saved = await api.initWorkspace({ basePath: selectedPath, mode: 'useExisting' });
       setSettings(saved);
     } catch (setupError) {
@@ -203,14 +189,12 @@ const App = (): JSX.Element => {
       title: `${i + 1}. ${block.title}`,
       text: replaceVars(block.body, variables)
     }));
-
     return {
       header: replaceVars(TEST_FRAME.header, variables),
       bodyLines,
       footer: replaceVars(TEST_FRAME.footer, variables)
     };
   }, [selectedBlocks, variables]);
-
 
   const removeFromAssembly = (instanceId: string): void => {
     setSelectedBlocks((prev) => {
@@ -225,19 +209,16 @@ const App = (): JSX.Element => {
   const onDragStart = (event: DragStartEvent): void => {
     const activeId = String(event.active.id);
     if (activeId.startsWith('available:')) {
-      const blockId = activeId.replace('available:', '');
-      const block = availableBlocks.find((item) => item.id === blockId) ?? null;
+      const block = availableBlocks.find((item) => item.id === activeId.replace('available:', '')) ?? null;
       setActiveDragBlock(block);
       return;
     }
-
     const selected = selectedBlocks.find((item) => item.instanceId === activeId);
     setActiveDragBlock(selected?.block ?? null);
   };
 
-  const onDragCancel = (): void => {
-    setActiveDragBlock(null);
-  };
+  const onDragCancel = (): void => setActiveDragBlock(null);
+
   const onDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event;
     if (!over) {
@@ -249,8 +230,7 @@ const App = (): JSX.Element => {
     const overId = String(over.id);
 
     if (activeId.startsWith('available:') && (overId === 'assembly-zone' || overId.startsWith('selected:'))) {
-      const blockId = activeId.replace('available:', '');
-      const block = availableBlocks.find((item) => item.id === blockId);
+      const block = availableBlocks.find((item) => item.id === activeId.replace('available:', ''));
       if (!block) {
         return;
       }
@@ -266,13 +246,18 @@ const App = (): JSX.Element => {
 
     const activeIndex = selectedBlocks.findIndex((item) => item.instanceId === activeId);
     const overIndex = selectedBlocks.findIndex((item) => item.instanceId === overId);
-
     if (activeIndex >= 0 && overIndex >= 0 && activeIndex !== overIndex) {
       setSelectedBlocks((prev) => arrayMove(prev, activeIndex, overIndex));
     }
-
     setActiveDragBlock(null);
   };
+
+  const previewTextStyle = {
+    fontFamily,
+    fontWeight: isBold ? 700 : 400,
+    fontStyle: isItalic ? 'italic' : 'normal',
+    textAlign
+  } as const;
 
   return (
     <main className="icloud-page">
@@ -281,14 +266,11 @@ const App = (): JSX.Element => {
           <div className="lb-title">License Builder</div>
           <div className="lb-subtitle">Конструктор лицензионных договоров</div>
         </div>
-
         <div className="top-actions">
           <button type="button" className="btn-ghost">
             {hasWorkspace ? `Workspace: ${settings.workspacePath}` : 'Workspace не настроен'}
           </button>
-          <button type="button" className="btn-primary" onClick={configureWorkspace}>
-            Настроить папки
-          </button>
+          <button type="button" className="btn-primary" onClick={configureWorkspace}>Настроить папки</button>
         </div>
       </header>
 
@@ -314,10 +296,7 @@ const App = (): JSX.Element => {
             <div className="section-label">Сборка</div>
 
             <div className="assembly-wrap">
-              <SortableContext
-                items={selectedBlocks.map((item) => item.instanceId)}
-                strategy={verticalListSortingStrategy}
-              >
+              <SortableContext items={selectedBlocks.map((item) => item.instanceId)} strategy={verticalListSortingStrategy}>
                 <DropZone id="assembly-zone">
                   <div className="scroll-list">
                     {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите блоки сюда</div> : null}
@@ -346,14 +325,10 @@ const App = (): JSX.Element => {
                 <button type="button" className={`btn-tool ${textAlign === 'right' ? 'active' : ''}`} onClick={() => setTextAlign('right')}>⇥</button>
               </div>
 
-              <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>
-                Настройки переменных
-              </button>
+              <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>Настройки переменных</button>
 
               <div className="export-menu-wrap">
-                <button className="btn-ghost" type="button" onClick={() => setShowExportMenu((v) => !v)}>
-                  Экспорт ▾
-                </button>
+                <button className="btn-ghost" type="button" onClick={() => setShowExportMenu((v) => !v)}>Экспорт ▾</button>
                 {showExportMenu ? (
                   <div className="export-menu">
                     <button type="button" disabled={!hasWorkspace}>Экспорт .docx</button>
@@ -377,6 +352,7 @@ const App = (): JSX.Element => {
             </div>
           </section>
         </div>
+
         <DragOverlay>
           {activeDragBlock ? (
             <div className="block-row block-row-overlay">
@@ -411,9 +387,7 @@ const App = (): JSX.Element => {
               ))}
             </div>
             <div className="popup-actions">
-              <button className="btn-primary" type="button" onClick={() => setShowVarsPopup(false)}>
-                Готово
-              </button>
+              <button className="btn-primary" type="button" onClick={() => setShowVarsPopup(false)}>Готово</button>
             </div>
           </div>
         </div>
