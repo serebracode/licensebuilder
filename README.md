@@ -217,3 +217,8 @@ npm run dev:web
 
 После этого Vercel будет показывать актуальный UI-preview из `src/App.tsx`, но без нативных функций Electron (выбор папок через macOS диалог и т.д.).
 
+
+
+## Полезно
+
+- Как передать реальные `.docx` без вложений: `docs/how-to-share-docx.md`.
