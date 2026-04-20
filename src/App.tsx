@@ -108,10 +108,10 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
 
 const AvailableRow = ({
   block,
-  onAdd
+  onOpenEditor,
 }: {
   block: LicenseBlock;
-  onAdd: (block: LicenseBlock) => void;
+  onOpenEditor: (id: string) => void;
 }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `available:${block.id}`
@@ -122,10 +122,19 @@ const AvailableRow = ({
       ref={setNodeRef}
       className="block-row"
       style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }}
-      onClick={() => onAdd(block)}
+      onClick={() => onOpenEditor(block.id)}
     >
-      <span className="drag-handle"><DragDots /></span>
-      <div className="block-info" {...attributes} {...listeners}>
+      <span
+        className="drag-handle"
+        {...attributes}
+        {...listeners}
+        onPointerDown={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
+        title="Перетащить в сборку"
+      >
+        <DragDots />
+      </span>
+      <div className="block-info">
         <div className="block-name">{block.title}</div>
         <div className="block-desc">{block.description}</div>
       </div>
@@ -135,10 +144,12 @@ const AvailableRow = ({
 
 const AssemblyRow = ({
   item,
-  onDelete
+  onDelete,
+  onOpenEditor,
 }: {
   item: SelectedBlock;
   onDelete: (instanceId: string) => void;
+  onOpenEditor: (id: string) => void;
 }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.instanceId
@@ -149,9 +160,18 @@ const AssemblyRow = ({
       ref={setNodeRef}
       className="block-row"
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      onClick={() => onOpenEditor(item.block.id)}
     >
-      <span className="drag-handle"><DragDots /></span>
-      <div className="block-info" {...attributes} {...listeners}>
+      <span
+        className="drag-handle"
+        {...attributes}
+        {...listeners}
+        onPointerDown={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
+      >
+        <DragDots />
+      </span>
+      <div className="block-info">
         <div className="block-name">{item.block.title}</div>
         <div className="block-desc">{item.block.description}</div>
       </div>
@@ -159,13 +179,66 @@ const AssemblyRow = ({
         type="button"
         className="row-delete"
         onPointerDown={(event) => event.stopPropagation()}
-        onClick={() => onDelete(item.instanceId)}
+        onClick={(e) => { e.stopPropagation(); onDelete(item.instanceId); }}
       >
         ×
       </button>
     </div>
   );
 };
+
+function BlockEditor({
+  block,
+  onSave,
+}: {
+  block: LicenseBlock;
+  onSave: (updated: LicenseBlock) => void;
+}): JSX.Element {
+  const [title, setTitle] = useState(block.title);
+  const [body, setBody] = useState(
+    block.paragraphs && block.paragraphs.length > 0
+      ? block.paragraphs.join('\n\n')
+      : block.body
+  );
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    const paragraphs = body.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+    onSave({ ...block, title, body, paragraphs });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  return (
+    <div className="block-editor">
+      <div className="block-editor__header">
+        <input
+          className="block-editor__title-input"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Название блока"
+        />
+        <button
+          type="button"
+          className={`btn-primary${saved ? ' btn-saved' : ''}`}
+          onClick={handleSave}
+        >
+          {saved ? '✓ Сохранено' : 'Сохранить'}
+        </button>
+      </div>
+      <div className="block-editor__hint">
+        Разделяйте пункты пустой строкой — каждый получит номер X.Y в документе
+      </div>
+      <textarea
+        className="block-editor__textarea"
+        value={body}
+        onChange={e => setBody(e.target.value)}
+        spellCheck
+        placeholder="Текст блока..."
+      />
+    </div>
+  );
+}
 
 const App = (): JSX.Element => {
   const api = useMemo(() => getApi(), []);
@@ -178,6 +251,8 @@ const App = (): JSX.Element => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [activeDragBlock, setActiveDragBlock] = useState<LicenseBlock | null>(null);
+  const [activeTab, setActiveTab] = useState<'preview' | string>('preview');
+  const [openTabIds, setOpenTabIds] = useState<string[]>([]);
   const [variables, setVariables] = useState<Record<string, string>>({
     company_name: '',
     contract_date: ''
@@ -236,6 +311,31 @@ const App = (): JSX.Element => {
     } catch (e) {
       setImportStatus('Ошибка парсинга: ' + (e instanceof Error ? e.message : String(e)));
     }
+  };
+
+  const openBlockEditor = (id: string): void => {
+    setOpenTabIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    setActiveTab(id);
+  };
+
+  const closeTab = (id: string): void => {
+    setOpenTabIds(prev => prev.filter(t => t !== id));
+    setActiveTab(prev => prev === id ? 'preview' : prev);
+  };
+
+  const findBlock = (id: string): LicenseBlock | undefined =>
+    availableBlocks.find(b => b.id === id) ??
+    selectedBlocks.find(s => s.block.id === id)?.block;
+
+  const saveBlockEdit = (updated: LicenseBlock): void => {
+    setAvailableBlocks(prev => {
+      const next = prev.map(b => b.id === updated.id ? updated : b);
+      saveBlocks(next);
+      return next;
+    });
+    setSelectedBlocks(prev =>
+      prev.map(s => s.block.id === updated.id ? { ...s, block: updated } : s)
+    );
   };
 
   const addFromLibrary = (block: LicenseBlock): void => {
@@ -378,7 +478,7 @@ const App = (): JSX.Element => {
             <div className="section-label">Блоки</div>
             <div className="scroll-list">
               {availableBlocks.map((block) => (
-                <AvailableRow key={block.id} block={block} onAdd={addFromLibrary} />
+                <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} />
               ))}
             </div>
 
@@ -391,7 +491,7 @@ const App = (): JSX.Element => {
                   <div className="scroll-list">
                     {selectedBlocks.length === 0 ? <div className="drop-hint">Перетащите блоки сюда</div> : null}
                     {selectedBlocks.map((item) => (
-                      <AssemblyRow key={item.instanceId} item={item} onDelete={removeFromAssembly} />
+                      <AssemblyRow key={item.instanceId} item={item} onDelete={removeFromAssembly} onOpenEditor={openBlockEditor} />
                     ))}
                   </div>
                 </DropZone>
@@ -400,6 +500,37 @@ const App = (): JSX.Element => {
           </section>
 
           <section className="right-pane">
+            {/* ── Tab bar ── */}
+            <div className="tab-bar">
+              <button
+                type="button"
+                className={`tab${activeTab === 'preview' ? ' tab--active' : ''}`}
+                onClick={() => setActiveTab('preview')}
+              >
+                Договор
+              </button>
+              {openTabIds.map(id => {
+                const b = findBlock(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`tab${activeTab === id ? ' tab--active' : ''}`}
+                    onClick={() => setActiveTab(id)}
+                  >
+                    <span className="tab__label">{b?.title ?? id}</span>
+                    <span
+                      className="tab__close"
+                      role="button"
+                      onClick={e => { e.stopPropagation(); closeTab(id); }}
+                    >×</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Toolbar (only on preview tab) ── */}
+            {activeTab === 'preview' && (
             <div className="preview-toolbar">
               <div className="editor-tools">
                 <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)}>
@@ -422,9 +553,7 @@ const App = (): JSX.Element => {
                 <button type="button" className={`btn-tool ${textAlign === 'center' ? 'active' : ''}`} onClick={() => setTextAlign('center')}>≡</button>
                 <button type="button" className={`btn-tool ${textAlign === 'right' ? 'active' : ''}`} onClick={() => setTextAlign('right')}>⇥</button>
               </div>
-
-              <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>Настройки переменных</button>
-
+              <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>Переменные</button>
               <div className="export-menu-wrap">
                 <button className="btn-ghost" type="button" onClick={() => setShowExportMenu((v) => !v)}>Экспорт ▾</button>
                 {showExportMenu ? (
@@ -435,8 +564,19 @@ const App = (): JSX.Element => {
                 ) : null}
               </div>
             </div>
+            )}
 
-            <div className="docs-canvas">
+            {/* ── Block editor tabs ── */}
+            {openTabIds.map(id => {
+              const b = findBlock(id);
+              if (!b || activeTab !== id) return null;
+              return (
+                <BlockEditor key={id} block={b} onSave={saveBlockEdit} />
+              );
+            })}
+
+            {/* ── Preview tab ── */}
+            <div className="docs-canvas" style={{ display: activeTab === 'preview' ? 'flex' : 'none' }}>
               {(() => {
                 type PreviewLine = { text: string; isHeading: boolean };
                 const allLines: PreviewLine[] = [
