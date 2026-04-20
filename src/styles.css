@@ -349,7 +349,7 @@ body {
   box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
   /* A4 margins: top 1cm, right 1cm, bottom 2cm, left 2cm */
   padding: 38px 38px 76px 76px;
-  font-size: 11px;
+  font-size: 11pt;
   line-height: 1.2;
   color: #111;
   position: relative;

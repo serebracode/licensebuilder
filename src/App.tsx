@@ -227,7 +227,7 @@ function BlockEditor({
       </div>
 
       <div className="block-editor-canvas">
-        <article className="docs-paper block-editor-paper" style={{ fontFamily, fontSize: `${fontSize}px` }}>
+        <article className="docs-paper block-editor-paper" style={{ fontFamily, fontSize: `${fontSize}pt` }}>
           <EditorContent editor={editor} className="tiptap-editor" />
         </article>
       </div>
@@ -436,7 +436,7 @@ const App = (): JSX.Element => {
     fontFamily,
     fontWeight: isBold ? 700 : 400,
     fontStyle: isItalic ? 'italic' : 'normal',
-    fontSize: `${fontSize}px`,
+    fontSize: `${fontSize}pt`,
   } as const;
 
   return (
@@ -536,7 +536,7 @@ const App = (): JSX.Element => {
                       }
                     >{line.text}</p>
                   ))}
-                  <div className="page-number" style={{ fontSize: `${fontSize - 1}px` }}>{pi + 1}</div>
+                  <div className="page-number" style={{ fontSize: `${fontSize - 1}pt` }}>{pi + 1}</div>
                 </article>
               ))}
               {pages.length === 0 && (
