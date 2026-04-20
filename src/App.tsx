@@ -242,30 +242,9 @@ function BlockEditor({
   };
 
   return (
-    <div className="block-editor-canvas">
-      <article className="docs-paper block-editor-paper">
-        <div className="block-editor__header">
-          <input
-            className="block-editor__title-input"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Название блока"
-          />
-          <div className="block-editor__actions">
-            <button type="button" className="btn-ghost" onClick={() => fileInputRef.current?.click()}>
-              Импорт .docx
-            </button>
-            <button
-              type="button"
-              className={`btn-primary${saved ? ' btn-saved' : ''}`}
-              onClick={handleSave}
-            >
-              {saved ? '✓ Сохранено' : 'Сохранить'}
-            </button>
-          </div>
-        </div>
-
-        <div className="editor-format-bar">
+    <>
+      <div className="preview-toolbar">
+        <div className="editor-tools">
           <button
             type="button"
             className={`btn-tool${editor?.isActive('bold') ? ' active' : ''}`}
@@ -305,9 +284,29 @@ function BlockEditor({
             title="Маркированный список"
           >•</button>
         </div>
+        <button type="button" className="btn-ghost" onClick={() => fileInputRef.current?.click()}>
+          Импорт .docx
+        </button>
+        <button
+          type="button"
+          className={`btn-primary${saved ? ' btn-saved' : ''}`}
+          onClick={handleSave}
+        >
+          {saved ? '✓ Сохранено' : 'Сохранить'}
+        </button>
+      </div>
 
-        <EditorContent editor={editor} className="tiptap-editor" />
-      </article>
+      <div className="block-editor-canvas">
+        <article className="docs-paper block-editor-paper">
+          <input
+            className="block-editor__title-input"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Название блока"
+          />
+          <EditorContent editor={editor} className="tiptap-editor" />
+        </article>
+      </div>
 
       <input
         ref={fileInputRef}
@@ -320,7 +319,7 @@ function BlockEditor({
           e.target.value = '';
         }}
       />
-    </div>
+    </>
   );
 }
 
