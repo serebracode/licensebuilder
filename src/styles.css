@@ -183,6 +183,40 @@ body {
   background: transparent;
 }
 
+
+.editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+
+.editor-tools select {
+  font-size: 12px;
+  border: 0.5px solid #d8d8dd;
+  border-radius: 7px;
+  padding: 4px 8px;
+  background: #fff;
+}
+
+.btn-tool {
+  min-width: 28px;
+  height: 28px;
+  border: 0.5px solid #d8d8dd;
+  border-radius: 7px;
+  background: #fff;
+  color: #444;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-tool.active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+
 .export-menu-wrap { position: relative; }
 
 .export-menu {

@@ -78,6 +78,13 @@ const DragDots = (): JSX.Element => (
 
 const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.Element => {
   const { setNodeRef, isOver } = useDroppable({ id });
+
+  const previewTextStyle = {
+    fontFamily,
+    fontWeight: isBold ? 700 : 400,
+    fontStyle: isItalic ? 'italic' : 'normal',
+    textAlign
+  } as const;
   return (
     <div ref={setNodeRef} className={`drop-zone ${isOver ? 'is-over' : ''}`}>
       {children}
@@ -158,6 +165,10 @@ const App = (): JSX.Element => {
   });
   const [showVarsPopup, setShowVarsPopup] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [fontFamily, setFontFamily] = useState('Times New Roman');
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
 
   const hasWorkspace = Boolean(settings.workspacePath);
 
@@ -321,6 +332,20 @@ const App = (): JSX.Element => {
 
           <section className="right-pane">
             <div className="preview-toolbar">
+              <div className="editor-tools">
+                <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)}>
+                  <option>Times New Roman</option>
+                  <option>Arial</option>
+                  <option>Helvetica</option>
+                  <option>Georgia</option>
+                </select>
+                <button type="button" className={`btn-tool ${isBold ? 'active' : ''}`} onClick={() => setIsBold((v) => !v)}>B</button>
+                <button type="button" className={`btn-tool ${isItalic ? 'active' : ''}`} onClick={() => setIsItalic((v) => !v)}>I</button>
+                <button type="button" className={`btn-tool ${textAlign === 'left' ? 'active' : ''}`} onClick={() => setTextAlign('left')}>⇤</button>
+                <button type="button" className={`btn-tool ${textAlign === 'center' ? 'active' : ''}`} onClick={() => setTextAlign('center')}>≡</button>
+                <button type="button" className={`btn-tool ${textAlign === 'right' ? 'active' : ''}`} onClick={() => setTextAlign('right')}>⇥</button>
+              </div>
+
               <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup((v) => !v)}>
                 Настройки переменных
               </button>
@@ -339,7 +364,7 @@ const App = (): JSX.Element => {
             </div>
 
             <div className="docs-canvas">
-              <article className="docs-paper">
+              <article className="docs-paper" style={previewTextStyle}>
                 <p className="preview-line">{previewParts.header}</p>
                 {previewParts.bodyLines.map((line) => (
                   <div key={line.title}>
