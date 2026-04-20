@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
@@ -263,6 +263,8 @@ const App = (): JSX.Element => {
   });
 
   const dirtyTabsRef = useRef(new Set<string>());
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [pagedLines, setPagedLines] = useState<PreviewLine[][] | null>(null);
 
   const handleDirtyChange = useCallback((id: string, dirty: boolean) => {
     if (dirty) dirtyTabsRef.current.add(id);
@@ -375,6 +377,36 @@ const App = (): JSX.Element => {
     return lines;
   }, [frameBlocks, selectedBlocks, variables, frame]);
 
+  // Measure actual rendered heights and split into A4 pages
+  const A4_CONTENT_H = 1123 - 38 - 76; // content height minus top/bottom padding
+  useLayoutEffect(() => {
+    const el = measureRef.current;
+    if (!el) return;
+    const children = Array.from(el.children) as HTMLElement[];
+    if (children.length === 0) { setPagedLines([]); return; }
+
+    const pages: PreviewLine[][] = [];
+    let cur: PreviewLine[] = [];
+    let usedH = 0;
+
+    children.forEach((child, i) => {
+      const lineH = i + 1 < children.length
+        ? children[i + 1].offsetTop - child.offsetTop
+        : child.offsetHeight;
+
+      if (usedH + lineH > A4_CONTENT_H && cur.length > 0) {
+        pages.push(cur);
+        cur = [previewLines[i]];
+        usedH = lineH;
+      } else {
+        cur.push(previewLines[i]);
+        usedH += lineH;
+      }
+    });
+    if (cur.length > 0) pages.push(cur);
+    setPagedLines(pages);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewLines, fontFamily, fontSize, isBold, isItalic]);
 
   const removeFromAssembly = (instanceId: string): void => {
     setSelectedBlocks(prev => {
@@ -505,22 +537,54 @@ const App = (): JSX.Element => {
               );
             })}
 
+            {/* Hidden measurement container — same font styles, same classNames, invisible */}
+            <div
+              ref={measureRef}
+              aria-hidden
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: '-9999px',
+                width: `${794 - 76 - 38}px`,
+                fontFamily,
+                fontSize: `${fontSize}pt`,
+                lineHeight: 1.2,
+                fontWeight: isBold ? 700 : 400,
+                fontStyle: isItalic ? 'italic' : 'normal',
+                pointerEvents: 'none',
+              }}
+            >
+              {previewLines.map((line, i) => (
+                <p
+                  key={i}
+                  className={
+                    line.type === 'heading' ? 'preview-line preview-heading' :
+                    line.type === 'subheading' ? 'preview-line preview-subheading' :
+                    'preview-line'
+                  }
+                >{line.text}</p>
+              ))}
+            </div>
+
             <div className="docs-canvas" style={{ display: activeTab === 'preview' ? 'flex' : 'none' }}>
-              <article className="docs-paper" style={paperStyle}>
-                {previewLines.length === 0
-                  ? <p className="preview-empty">Нет данных для предпросмотра</p>
-                  : previewLines.map((line, i) => (
-                    <p
-                      key={i}
-                      className={
-                        line.type === 'heading' ? 'preview-line preview-heading' :
-                        line.type === 'subheading' ? 'preview-line preview-subheading' :
-                        'preview-line'
-                      }
-                    >{line.text}</p>
-                  ))
-                }
-              </article>
+              {(pagedLines ?? [previewLines]).map((pageLines, pi) => (
+                <article key={pi} className="docs-paper" style={paperStyle}>
+                  {pageLines.length === 0
+                    ? <p className="preview-empty">Нет данных для предпросмотра</p>
+                    : pageLines.map((line, li) => (
+                      <p
+                        key={li}
+                        className={
+                          line.type === 'heading' ? 'preview-line preview-heading' :
+                          line.type === 'subheading' ? 'preview-line preview-subheading' :
+                          'preview-line'
+                        }
+                      >{line.text}</p>
+                    ))
+                  }
+                  <div className="page-number" style={{ fontSize: `${fontSize - 1}pt` }}>{pi + 1}</div>
+                </article>
+              ))}
               {/* Requisites sheet */}
               <article className="docs-paper docs-paper--reqs" style={paperStyle}>
                 <div className="reqs-columns">
