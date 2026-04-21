@@ -158,6 +158,43 @@ body {
 .row-delete { border: none; background: transparent; color: #b0b0b8; font-size: 16px; line-height: 1; padding: 0 2px; cursor: pointer; }
 .row-delete:hover { color: #7a7a82; }
 
+/* ⋯ menu on block rows */
+.row-menu-wrap { position: relative; flex-shrink: 0; }
+
+.row-more-btn {
+  opacity: 0;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: opacity 0.1s;
+}
+.block-row:hover .row-more-btn { opacity: 1; }
+.row-more-btn:hover { background: #ebebed; }
+
+.row-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 2px);
+  background: #fff;
+  border: 0.5px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 12%);
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  z-index: 50;
+}
+.row-menu button { border: none; background: transparent; text-align: left; padding: 7px 12px; font-size: 12px; cursor: pointer; }
+.row-menu button:hover { background: #f6f6f7; }
+.row-menu button:first-child { border-radius: 8px 8px 0 0; }
+.row-menu button:last-child { border-radius: 0 0 8px 8px; }
+.row-menu-delete { color: #c00 !important; }
+
 .h-divider { height: 0.5px; background: #e8e8e8; margin-top: 4px; flex-shrink: 0; }
 
 .assembly-wrap { flex: 1; min-height: 0; }

@@ -69,17 +69,42 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
   );
 };
 
-const FrameRow = ({ block, onOpenEditor }: { block: LicenseBlock; onOpenEditor: (id: string) => void }): JSX.Element => (
-  <div className="block-row" onClick={() => onOpenEditor(block.id)}>
-    <div className="block-info">
-      <div className="block-name">{block.title}</div>
-      <div className="block-desc">{block.description}</div>
-    </div>
-  </div>
-);
+type RowActions = { onRename: () => void; onDuplicate: () => void; onDelete: () => void };
 
-const AvailableRow = ({ block, onOpenEditor }: { block: LicenseBlock; onOpenEditor: (id: string) => void }): JSX.Element => {
+const RowMenu = ({ actions, onClose }: { actions: RowActions; onClose: () => void }): JSX.Element => {
+  useEffect(() => {
+    const handler = () => onClose();
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+  return (
+    <div className="row-menu" onMouseDown={e => e.stopPropagation()}>
+      <button type="button" onClick={() => { actions.onRename(); onClose(); }}>Переименовать</button>
+      <button type="button" onClick={() => { actions.onDuplicate(); onClose(); }}>Дублировать</button>
+      <button type="button" className="row-menu-delete" onClick={() => { actions.onDelete(); onClose(); }}>Удалить</button>
+    </div>
+  );
+};
+
+const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <div className="block-row" onClick={() => onOpenEditor(block.id)}>
+      <div className="block-info">
+        <div className="block-name">{block.title}</div>
+        <div className="block-desc">{block.description}</div>
+      </div>
+      <div className="row-menu-wrap" onClick={e => e.stopPropagation()}>
+        <button type="button" className="row-more-btn" onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}>⋯</button>
+        {menuOpen && <RowMenu actions={actions} onClose={() => setMenuOpen(false)} />}
+      </div>
+    </div>
+  );
+};
+
+const AvailableRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `available:${block.id}` });
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div
       ref={setNodeRef}
@@ -93,6 +118,10 @@ const AvailableRow = ({ block, onOpenEditor }: { block: LicenseBlock; onOpenEdit
       <div className="block-info">
         <div className="block-name">{block.title}</div>
         <div className="block-desc">{block.description}</div>
+      </div>
+      <div className="row-menu-wrap" onClick={e => e.stopPropagation()}>
+        <button type="button" className="row-more-btn" onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}>⋯</button>
+        {menuOpen && <RowMenu actions={actions} onClose={() => setMenuOpen(false)} />}
       </div>
     </div>
   );
@@ -332,6 +361,32 @@ const App = (): JSX.Element => {
     openBlockEditor(newBlock.id);
   };
 
+  const renameBlock = (id: string, isFrame: boolean): void => {
+    const block = isFrame ? frameBlocks.find(b => b.id === id) : availableBlocks.find(b => b.id === id);
+    if (!block) return;
+    const name = window.prompt('Новое название:', block.title);
+    if (!name || name === block.title) return;
+    const updated = { ...block, title: name };
+    if (isFrame) setFrameBlocks(prev => { const next = prev.map(b => b.id === id ? updated : b); saveFrameBlocks(next); return next; });
+    else setAvailableBlocks(prev => { const next = prev.map(b => b.id === id ? updated : b); saveModuleBlocks(next); return next; });
+  };
+
+  const duplicateBlock = (id: string, isFrame: boolean): void => {
+    const block = isFrame ? frameBlocks.find(b => b.id === id) : availableBlocks.find(b => b.id === id);
+    if (!block) return;
+    const copy = { ...block, id: `${isFrame ? 'frame' : 'module'}-copy-${Date.now()}`, title: `${block.title} (копия)` };
+    if (isFrame) setFrameBlocks(prev => { const next = [...prev, copy]; saveFrameBlocks(next); return next; });
+    else setAvailableBlocks(prev => { const next = [...prev, copy]; saveModuleBlocks(next); return next; });
+  };
+
+  const deleteBlock = (id: string, isFrame: boolean): void => {
+    if (!window.confirm('Удалить блок?')) return;
+    setOpenTabIds(prev => prev.filter(t => t !== id));
+    setActiveTab(prev => prev === id ? 'preview' : prev);
+    if (isFrame) setFrameBlocks(prev => { const next = prev.filter(b => b.id !== id); saveFrameBlocks(next); return next; });
+    else setAvailableBlocks(prev => { const next = prev.filter(b => b.id !== id); saveModuleBlocks(next); return next; });
+  };
+
   const requiredVariables = useMemo(() => {
     const vars = new Set<string>(['company_name', 'contract_date']);
     selectedBlocks.forEach(({ block }) => block.variables.forEach(name => vars.add(name)));
@@ -474,7 +529,7 @@ const App = (): JSX.Element => {
                   <span className="section-label">Статьи рамки</span>
                   <button type="button" className="btn-add" onClick={addFrameBlock}>+ Добавить</button>
                 </div>
-                {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
+                {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} actions={{ onRename: () => renameBlock(block.id, true), onDuplicate: () => duplicateBlock(block.id, true), onDelete: () => deleteBlock(block.id, true) }} />)}
               </div>
             )}
 
@@ -485,7 +540,7 @@ const App = (): JSX.Element => {
                     <span className="section-label">Модули</span>
                     <button type="button" className="btn-add" onClick={addModuleBlock}>+ Добавить</button>
                   </div>
-                  {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} />)}
+                  {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} actions={{ onRename: () => renameBlock(block.id, false), onDuplicate: () => duplicateBlock(block.id, false), onDelete: () => deleteBlock(block.id, false) }} />)}
                 </div>
                 <div className="h-divider" />
                 <div className="section-label">Сборка</div>
