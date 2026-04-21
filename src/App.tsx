@@ -2,6 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
 import {
   DndContext,
   DragOverlay,
@@ -20,12 +24,49 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   loadFrameBlocks, saveFrameBlocks,
   loadModuleBlocks, saveModuleBlocks,
+  DEFAULT_FRAME_BLOCKS, DEFAULT_MODULE_BLOCKS,
   FRAME_DEFAULTS, type LicenseBlock
 } from './data.test-blocks';
 import { parseDocx } from './docx-parser';
 
 type SelectedBlock = { instanceId: string; block: LicenseBlock };
 type PreviewLine = { text: string; type: 'heading' | 'subheading' | 'para' | 'text' };
+
+type DocFrame = { header: string; article3Title: string; reqLeft: string; reqRight: string };
+type AppDoc = {
+  id: string; name: string; updatedAt: number;
+  frameBlocks: LicenseBlock[]; moduleBlocks: LicenseBlock[];
+  assembledModules: { instanceId: string; blockId: string }[];
+  frame: DocFrame; fontFamily: string; fontSize: number;
+};
+type DocMeta = { id: string; name: string; updatedAt: number };
+
+const DOC_INDEX_KEY = 'lb_doc_index_v1';
+const docKey = (id: string) => `lb_doc_${id}_v1`;
+
+function loadDocIndex(): DocMeta[] {
+  try { return JSON.parse(localStorage.getItem(DOC_INDEX_KEY) ?? '[]'); } catch { return []; }
+}
+function saveDocToStorage(doc: AppDoc): void {
+  localStorage.setItem(docKey(doc.id), JSON.stringify(doc));
+  const idx = loadDocIndex();
+  const entry: DocMeta = { id: doc.id, name: doc.name, updatedAt: doc.updatedAt };
+  const i = idx.findIndex(d => d.id === doc.id);
+  if (i >= 0) idx[i] = entry; else idx.push(entry);
+  localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(idx));
+}
+function loadDocFromStorage(id: string): AppDoc | null {
+  try { return JSON.parse(localStorage.getItem(docKey(id)) ?? 'null'); } catch { return null; }
+}
+function deleteDocFromStorage(id: string): void {
+  localStorage.removeItem(docKey(id));
+  localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(loadDocIndex().filter(d => d.id !== id)));
+}
+
+const DEFAULT_FRAME: DocFrame = {
+  header: FRAME_DEFAULTS.header, article3Title: FRAME_DEFAULTS.article3Title,
+  reqLeft: FRAME_DEFAULTS.reqLeft, reqRight: FRAME_DEFAULTS.reqRight,
+};
 
 const replaceVars = (text: string, values: Record<string, string>): string =>
   text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, name: string) => values[name] || `{{${name}}}`);
@@ -182,6 +223,8 @@ function BlockEditor({
     extensions: [
       StarterKit,
       TextAlign.configure({ types: ['paragraph', 'heading'] }),
+      Table.configure({ resizable: false }),
+      TableRow, TableHeader, TableCell,
     ],
     content: bodyToHtml(block),
   });
@@ -246,6 +289,11 @@ function BlockEditor({
           <div className="format-separator" />
           <button type="button" className={`btn-tool${editor?.isActive('orderedList') ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleOrderedList().run(); }} title="Нумерованный список">1.</button>
           <button type="button" className={`btn-tool${editor?.isActive('bulletList') ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run(); }} title="Маркированный список">•</button>
+          <div className="format-separator" />
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }} title="Вставить таблицу">⊞</button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addColumnAfter().run(); }} title="Добавить столбец">+▕</button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addRowAfter().run(); }} title="Добавить строку">+▁</button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().deleteTable().run(); }} title="Удалить таблицу">✕⊞</button>
         </div>
         <div className="editor-actions">
           <button type="button" className="btn-ghost" onClick={() => fileInputRef.current?.click()}>Импорт .docx</button>
@@ -281,6 +329,12 @@ const App = (): JSX.Element => {
   const [variables, setVariables] = useState<Record<string, string>>({ company_name: '', contract_date: '' });
   const [showVarsPopup, setShowVarsPopup] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showDocPicker, setShowDocPicker] = useState(false);
+  const [docIndex, setDocIndex] = useState<DocMeta[]>(loadDocIndex);
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [currentDocName, setCurrentDocName] = useState('Без названия');
   const [fontFamily, setFontFamily] = useState('Times New Roman');
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
@@ -293,6 +347,22 @@ const App = (): JSX.Element => {
   });
 
   const dirtyTabsRef = useRef(new Set<string>());
+
+  // Wire Electron native menu → renderer actions
+  useEffect(() => {
+    const lb = (window as typeof window & { licenseBuilder?: typeof window.licenseBuilder }).licenseBuilder;
+    if (!lb?.onMenu) return;
+    const offs = [
+      lb.onMenu('menu:new', () => newDocument()),
+      lb.onMenu('menu:open', () => setShowDocPicker(true)),
+      lb.onMenu('menu:save', () => saveCurrentDoc()),
+      lb.onMenu('menu:save-as', () => { const n = window.prompt('Название:', currentDocName); if (n) { setCurrentDocName(n); saveCurrentDoc(n); } }),
+      lb.onMenu('menu:settings', () => setShowSettings(true)),
+    ];
+    return () => offs.forEach(off => off());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDocName]);
+
   const measureRef = useRef<HTMLDivElement>(null);
   const [pagedLines, setPagedLines] = useState<PreviewLine[][] | null>(null);
 
@@ -385,6 +455,58 @@ const App = (): JSX.Element => {
     setActiveTab(prev => prev === id ? 'preview' : prev);
     if (isFrame) setFrameBlocks(prev => { const next = prev.filter(b => b.id !== id); saveFrameBlocks(next); return next; });
     else setAvailableBlocks(prev => { const next = prev.filter(b => b.id !== id); saveModuleBlocks(next); return next; });
+  };
+
+  const applyDoc = (doc: AppDoc) => {
+    setFrameBlocks(doc.frameBlocks);
+    setAvailableBlocks(doc.moduleBlocks);
+    const assembled = doc.assembledModules.map(({ instanceId, blockId }) => {
+      const block = doc.moduleBlocks.find(b => b.id === blockId);
+      return block ? { instanceId, block } : null;
+    }).filter(Boolean) as SelectedBlock[];
+    setSelectedBlocks(assembled);
+    setFrame(doc.frame);
+    setFontFamily(doc.fontFamily ?? 'Times New Roman');
+    setFontSize(doc.fontSize ?? 11);
+    setCurrentDocId(doc.id);
+    setCurrentDocName(doc.name);
+    setOpenTabIds([]); setActiveTab('preview');
+  };
+
+  const saveCurrentDoc = (nameOverride?: string) => {
+    const name = nameOverride ?? currentDocName;
+    const id = currentDocId ?? `doc-${Date.now()}`;
+    const doc: AppDoc = {
+      id, name, updatedAt: Date.now(),
+      frameBlocks, moduleBlocks: availableBlocks,
+      assembledModules: selectedBlocks.map(s => ({ instanceId: s.instanceId, blockId: s.block.id })),
+      frame, fontFamily, fontSize,
+    };
+    saveDocToStorage(doc);
+    setCurrentDocId(id); setCurrentDocName(name);
+    setDocIndex(loadDocIndex());
+  };
+
+  const openDocById = (id: string) => {
+    const doc = loadDocFromStorage(id);
+    if (doc) { applyDoc(doc); setShowDocPicker(false); }
+  };
+
+  const newDocument = () => {
+    if (!window.confirm('Создать новый документ?')) return;
+    setFrameBlocks(DEFAULT_FRAME_BLOCKS);
+    setAvailableBlocks(DEFAULT_MODULE_BLOCKS);
+    setSelectedBlocks([]); setFrame(DEFAULT_FRAME);
+    setFontFamily('Times New Roman'); setFontSize(11);
+    setCurrentDocId(null); setCurrentDocName('Без названия');
+    setOpenTabIds([]); setActiveTab('preview');
+  };
+
+  const deleteDocById = (id: string) => {
+    if (!window.confirm('Удалить документ?')) return;
+    deleteDocFromStorage(id);
+    setDocIndex(loadDocIndex());
+    if (currentDocId === id) { setCurrentDocId(null); setCurrentDocName('Без названия'); }
   };
 
   const requiredVariables = useMemo(() => {
@@ -513,6 +635,25 @@ const App = (): JSX.Element => {
     <main className="icloud-page">
       <header className="icloud-topbar">
         <span className="brand-copyright">© LicenseConstructor</span>
+        <div className="topbar-doc">
+          <button type="button" className="doc-name-btn" onClick={() => setShowDocPicker(v => !v)}>
+            {currentDocName} ▾
+          </button>
+        </div>
+        <div className="topbar-actions">
+          <button type="button" className="btn-ghost" onClick={() => saveCurrentDoc()}>Сохранить</button>
+          <div className="export-menu-wrap">
+            <button type="button" className="btn-ghost" onClick={() => setShowFileMenu(v => !v)}>Файл ▾</button>
+            {showFileMenu && (
+              <div className="export-menu" style={{ left: 0, right: 'auto' }}>
+                <button type="button" onClick={() => { newDocument(); setShowFileMenu(false); }}>Новый документ</button>
+                <button type="button" onClick={() => { setShowDocPicker(true); setShowFileMenu(false); }}>Открыть...</button>
+                <button type="button" onClick={() => { const n = window.prompt('Сохранить как:', currentDocName); if (n) { setCurrentDocName(n); saveCurrentDoc(n); } setShowFileMenu(false); }}>Сохранить как...</button>
+                <button type="button" onClick={() => { setShowSettings(true); setShowFileMenu(false); }}>Настройки</button>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
@@ -761,6 +902,57 @@ const App = (): JSX.Element => {
           </div>
         </div>
       ) : null}
+
+      {showDocPicker && (
+        <div className="popup-backdrop" onClick={() => setShowDocPicker(false)}>
+          <div className="popup" onClick={e => e.stopPropagation()}>
+            <h3>Документы</h3>
+            {docIndex.length === 0
+              ? <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>Нет сохранённых документов</p>
+              : docIndex.map(d => (
+                <div key={d.id} className="doc-picker-row">
+                  <button type="button" className="doc-picker-name" onClick={() => openDocById(d.id)}>
+                    {d.name}
+                    <span className="doc-picker-date">{new Date(d.updatedAt).toLocaleDateString('ru')}</span>
+                  </button>
+                  <button type="button" className="row-delete" onClick={() => deleteDocById(d.id)}>×</button>
+                </div>
+              ))
+            }
+            <div className="popup-actions">
+              <button type="button" className="btn-ghost" onClick={() => { newDocument(); setShowDocPicker(false); }}>Новый документ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSettings && (
+        <div className="popup-backdrop" onClick={() => setShowSettings(false)}>
+          <div className="popup" onClick={e => e.stopPropagation()}>
+            <h3>Настройки</h3>
+            <p style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+              Рабочая папка используется для хранения документов при работе в десктоп-приложении.
+            </p>
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                style={{ flex: 1, border: '0.5px solid #d8d8dd', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}
+                placeholder="Путь к рабочей папке"
+                readOnly
+                value={typeof window !== 'undefined' && (window as typeof window & { licenseBuilder?: { platform?: string } }).licenseBuilder?.platform ? '(выбрать через кнопку)' : 'localStorage (веб-режим)'}
+              />
+              <button type="button" className="btn-ghost" onClick={async () => {
+                const w = (window as typeof window & { licenseBuilder?: { selectDirectory?: () => Promise<string | null> } }).licenseBuilder;
+                if (!w?.selectDirectory) { alert('Недоступно в веб-режиме'); return; }
+                const p = await w.selectDirectory();
+                if (p) alert(`Папка выбрана: ${p}`);
+              }}>Выбрать...</button>
+            </div>
+            <div className="popup-actions" style={{ marginTop: 16 }}>
+              <button className="btn-primary" type="button" onClick={() => setShowSettings(false)}>Закрыть</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

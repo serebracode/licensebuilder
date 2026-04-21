@@ -12,5 +12,9 @@ contextBridge.exposeInMainWorld('licenseBuilder', {
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<Record<string, string>>,
   selectDirectory: () => ipcRenderer.invoke('dialog:select-directory') as Promise<string | null>,
   initWorkspace: (payload: InitWorkspacePayload) =>
-    ipcRenderer.invoke('workspace:init', payload) as Promise<Record<string, string>>
+    ipcRenderer.invoke('workspace:init', payload) as Promise<Record<string, string>>,
+  onMenu: (channel: string, fn: () => void) => {
+    ipcRenderer.on(channel, fn);
+    return () => ipcRenderer.removeListener(channel, fn);
+  },
 });

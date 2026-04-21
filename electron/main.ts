@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import Store from 'electron-store';
@@ -23,12 +23,14 @@ const settingsStore: any = new Store<AppSettings>({
 
 const isDev = !app.isPackaged;
 
-const createWindow = (): void => {
+const createWindow = (): BrowserWindow => {
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1100,
     minHeight: 700,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 14, y: 15 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -42,6 +44,7 @@ const createWindow = (): void => {
   } else {
     void window.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+  return window;
 };
 
 const ensureWorkspaceStructure = async (basePath: string): Promise<AppSettings> => {
@@ -59,6 +62,29 @@ const ensureWorkspaceStructure = async (basePath: string): Promise<AppSettings> 
     templatesPath,
     exportsPath
   };
+};
+
+const buildMenu = (win: BrowserWindow): void => {
+  const send = (ch: string) => win.webContents.send(ch);
+  const template: Electron.MenuItemConstructorOptions[] = [
+    { role: 'appMenu' },
+    {
+      label: 'Файл',
+      submenu: [
+        { label: 'Новый документ', accelerator: 'CmdOrCtrl+N', click: () => send('menu:new') },
+        { label: 'Открыть...', accelerator: 'CmdOrCtrl+O', click: () => send('menu:open') },
+        { type: 'separator' },
+        { label: 'Сохранить', accelerator: 'CmdOrCtrl+S', click: () => send('menu:save') },
+        { label: 'Сохранить как...', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('menu:save-as') },
+        { type: 'separator' },
+        { label: 'Настройки...', accelerator: 'CmdOrCtrl+,', click: () => send('menu:settings') },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 };
 
 app.whenReady().then(() => {
@@ -99,7 +125,8 @@ app.whenReady().then(() => {
     return settings;
   });
 
-  createWindow();
+  const win = createWindow();
+  buildMenu(win);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

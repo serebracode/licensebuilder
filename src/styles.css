@@ -21,11 +21,35 @@ body {
   height: 48px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  gap: 10px;
+  padding: 0 16px 0 90px; /* 90px left for macOS traffic lights */
   border-bottom: 0.5px solid #e5e5e7;
   background: #fbfbfc;
   flex-shrink: 0;
+  -webkit-app-region: drag;
 }
+
+.icloud-topbar > * { -webkit-app-region: no-drag; }
+
+.topbar-doc { flex: 1; display: flex; justify-content: center; }
+
+.doc-name-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-name-btn:hover { background: rgba(0,0,0,0.05); }
+
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
 
 .brand-copyright {
   font-size: 13px;
@@ -371,6 +395,35 @@ body {
 .tiptap-editor .ProseMirror li:last-child { margin-bottom: 0; }
 
 .btn-saved { background: #1a9e5c !important; }
+
+/* ── TipTap tables ── */
+
+.tiptap-editor .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1.5em;
+  font-size: inherit;
+}
+.tiptap-editor .ProseMirror th,
+.tiptap-editor .ProseMirror td {
+  border: 1px solid #c8c8cf;
+  padding: 5px 8px;
+  vertical-align: top;
+  min-width: 60px;
+}
+.tiptap-editor .ProseMirror th { background: #f4f4f6; font-weight: 600; }
+.tiptap-editor .ProseMirror .selectedCell::after { background: rgba(100,150,255,0.15); }
+
+/* Same table styles in preview */
+.docs-paper table { border-collapse: collapse; width: 100%; margin-bottom: 1.5em; font-size: inherit; }
+.docs-paper th, .docs-paper td { border: 1px solid #c8c8cf; padding: 5px 8px; vertical-align: top; }
+.docs-paper th { font-weight: 600; }
+
+/* ── Document picker ── */
+.doc-picker-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 0.5px solid #f0f0f2; }
+.doc-picker-name { flex: 1; text-align: left; background: transparent; border: none; font-size: 13px; cursor: pointer; padding: 6px 4px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+.doc-picker-name:hover { background: #f5f5f7; }
+.doc-picker-date { font-size: 11px; color: #aaa; margin-left: 8px; }
 
 /* ── Export menu ── */
 
