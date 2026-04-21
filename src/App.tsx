@@ -113,22 +113,34 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
 
 type RowActions = { onRename: () => void; onDuplicate: () => void; onDelete: () => void };
 
-const RowMenu = ({ btnRef, actions, onClose }: { btnRef: React.RefObject<HTMLButtonElement | null>; actions: RowActions; onClose: () => void }): JSX.Element => {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+const RowMenu = ({ btnRef, actions, onClose }: { btnRef: React.RefObject<HTMLButtonElement | null>; actions: RowActions; onClose: () => void }): JSX.Element | null => {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useLayoutEffect(() => {
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setPos({ top: r.bottom + 4, left: r.right - 160 });
   }, [btnRef]);
+
   useEffect(() => {
-    const handler = () => onClose();
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+    let removeListener: (() => void) | null = null;
+    // Defer so the mousedown that opened the menu doesn't immediately close it
+    const timerId = window.setTimeout(() => {
+      const handler = () => onCloseRef.current();
+      document.addEventListener('mousedown', handler);
+      removeListener = () => document.removeEventListener('mousedown', handler);
+    }, 0);
+    return () => { clearTimeout(timerId); removeListener?.(); };
+  }, []); // stable — always reads latest onClose via ref
+
+  if (!pos) return null;
+
   return createPortal(
     <div className="row-menu" style={{ position: 'fixed', top: pos.top, left: pos.left }} onMouseDown={e => e.stopPropagation()}>
-      <button type="button" onClick={() => { actions.onRename(); onClose(); }}>Переименовать</button>
-      <button type="button" onClick={() => { actions.onDuplicate(); onClose(); }}>Дублировать</button>
-      <button type="button" className="row-menu-delete" onClick={() => { actions.onDelete(); onClose(); }}>Удалить</button>
+      <button type="button" onClick={() => { actions.onRename(); onCloseRef.current(); }}>Переименовать</button>
+      <button type="button" onClick={() => { actions.onDuplicate(); onCloseRef.current(); }}>Дублировать</button>
+      <button type="button" className="row-menu-delete" onClick={() => { actions.onDelete(); onCloseRef.current(); }}>Удалить</button>
     </div>,
     document.body
   );
