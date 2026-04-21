@@ -19,10 +19,10 @@ body {
 
 .icloud-topbar {
   height: 48px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 280px 1fr auto;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px 0 90px; /* 90px left for macOS traffic lights */
+  padding: 0 16px 0 0;
   border-bottom: 0.5px solid #e5e5e7;
   background: #fbfbfc;
   flex-shrink: 0;
@@ -31,7 +31,7 @@ body {
 
 .icloud-topbar > * { -webkit-app-region: no-drag; }
 
-.topbar-doc { flex: 1; display: flex; justify-content: center; }
+.topbar-doc { display: flex; justify-content: center; }
 
 .doc-name-btn {
   font-size: 13px;
@@ -76,7 +76,12 @@ body {
   font-weight: 600;
   color: #222;
   letter-spacing: -0.01em;
-  flex-shrink: 0;
+  padding-left: 14px; /* align with left-pane content */
+}
+
+/* macOS Electron: extra room for traffic lights */
+.icloud-page--mac .brand-copyright {
+  padding-left: 90px;
 }
 
 .btn-ghost,
@@ -222,17 +227,15 @@ body {
 .row-more-btn:hover { background: #ebebed; }
 
 .row-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 2px);
+  /* position/top/left/right set via inline style (portal, fixed) */
   background: #fff;
   border: 0.5px solid #ddd;
   border-radius: 8px;
   box-shadow: 0 6px 16px rgb(0 0 0 / 12%);
   display: flex;
   flex-direction: column;
-  min-width: 150px;
-  z-index: 50;
+  width: 152px;
+  z-index: 9999;
 }
 .row-menu button { border: none; background: transparent; text-align: left; padding: 7px 12px; font-size: 12px; cursor: pointer; }
 .row-menu button:hover { background: #f6f6f7; }

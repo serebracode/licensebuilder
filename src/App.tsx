@@ -113,6 +113,9 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
 
 type RowActions = { onRename: () => void; onDuplicate: () => void; onDelete: () => void };
 
+// Singleton: tracks close-fn of whichever RowMenu is currently open
+let _closeActiveRowMenu: (() => void) | null = null;
+
 const RowMenu = ({ btnRef, actions, onClose }: { btnRef: React.RefObject<HTMLButtonElement | null>; actions: RowActions; onClose: () => void }): JSX.Element | null => {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const onCloseRef = useRef(onClose);
@@ -120,24 +123,40 @@ const RowMenu = ({ btnRef, actions, onClose }: { btnRef: React.RefObject<HTMLBut
 
   useLayoutEffect(() => {
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 4, left: r.right - 160 });
+    if (!r) return;
+    const menuW = 152;
+    const left = Math.max(4, Math.min(r.right - menuW, window.innerWidth - menuW - 4));
+    setPos({ top: r.bottom + 4, left });
   }, [btnRef]);
 
   useEffect(() => {
+    // Close whatever other menu is open, then register ourselves
+    _closeActiveRowMenu?.();
+    const selfClose = () => onCloseRef.current();
+    _closeActiveRowMenu = selfClose;
+
     let removeListener: (() => void) | null = null;
-    // Defer so the mousedown that opened the menu doesn't immediately close it
     const timerId = window.setTimeout(() => {
       const handler = () => onCloseRef.current();
       document.addEventListener('mousedown', handler);
       removeListener = () => document.removeEventListener('mousedown', handler);
     }, 0);
-    return () => { clearTimeout(timerId); removeListener?.(); };
-  }, []); // stable — always reads latest onClose via ref
+
+    return () => {
+      clearTimeout(timerId);
+      removeListener?.();
+      if (_closeActiveRowMenu === selfClose) _closeActiveRowMenu = null;
+    };
+  }, []);
 
   if (!pos) return null;
 
   return createPortal(
-    <div className="row-menu" style={{ position: 'fixed', top: pos.top, left: pos.left }} onMouseDown={e => e.stopPropagation()}>
+    <div
+      className="row-menu"
+      style={{ position: 'fixed', top: pos.top, left: pos.left, right: 'auto' }}
+      onMouseDown={e => e.stopPropagation()}
+    >
       <button type="button" onClick={() => { actions.onRename(); onCloseRef.current(); }}>Переименовать</button>
       <button type="button" onClick={() => { actions.onDuplicate(); onCloseRef.current(); }}>Дублировать</button>
       <button type="button" className="row-menu-delete" onClick={() => { actions.onDelete(); onCloseRef.current(); }}>Удалить</button>
@@ -603,8 +622,10 @@ const App = (): JSX.Element => {
     fontSize: `${fontSize}pt`,
   } as const;
 
+  const isMac = (window as typeof window & { licenseBuilder?: { platform?: string } }).licenseBuilder?.platform === 'darwin';
+
   return (
-    <main className="icloud-page">
+    <main className={`icloud-page${isMac ? ' icloud-page--mac' : ''}`}>
       <header className="icloud-topbar">
         <span className="brand-copyright">© LicenseConstructor</span>
         <div className="topbar-doc">
