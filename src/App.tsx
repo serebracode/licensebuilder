@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
@@ -112,23 +113,30 @@ const DropZone = ({ id, children }: { id: string; children: ReactNode }): JSX.El
 
 type RowActions = { onRename: () => void; onDuplicate: () => void; onDelete: () => void };
 
-const RowMenu = ({ actions, onClose }: { actions: RowActions; onClose: () => void }): JSX.Element => {
+const RowMenu = ({ btnRef, actions, onClose }: { btnRef: React.RefObject<HTMLButtonElement | null>; actions: RowActions; onClose: () => void }): JSX.Element => {
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  useLayoutEffect(() => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, left: r.right - 160 });
+  }, [btnRef]);
   useEffect(() => {
     const handler = () => onClose();
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
-  return (
-    <div className="row-menu" onMouseDown={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="row-menu" style={{ position: 'fixed', top: pos.top, left: pos.left }} onMouseDown={e => e.stopPropagation()}>
       <button type="button" onClick={() => { actions.onRename(); onClose(); }}>Переименовать</button>
       <button type="button" onClick={() => { actions.onDuplicate(); onClose(); }}>Дублировать</button>
       <button type="button" className="row-menu-delete" onClick={() => { actions.onDelete(); onClose(); }}>Удалить</button>
-    </div>
+    </div>,
+    document.body
   );
 };
 
 const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
   return (
     <div className="block-row" onClick={() => onOpenEditor(block.id)}>
       <div className="block-info">
@@ -136,8 +144,8 @@ const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpe
         <div className="block-desc">{block.description}</div>
       </div>
       <div className="row-menu-wrap" onClick={e => e.stopPropagation()}>
-        <button type="button" className="row-more-btn" onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}>⋯</button>
-        {menuOpen && <RowMenu actions={actions} onClose={() => setMenuOpen(false)} />}
+        <button ref={btnRef} type="button" className="row-more-btn" onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}>⋯</button>
+        {menuOpen && <RowMenu btnRef={btnRef} actions={actions} onClose={() => setMenuOpen(false)} />}
       </div>
     </div>
   );
@@ -146,6 +154,7 @@ const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpe
 const AvailableRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `available:${block.id}` });
   const [menuOpen, setMenuOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
   return (
     <div
       ref={setNodeRef}
@@ -161,8 +170,8 @@ const AvailableRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; o
         <div className="block-desc">{block.description}</div>
       </div>
       <div className="row-menu-wrap" onClick={e => e.stopPropagation()}>
-        <button type="button" className="row-more-btn" onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}>⋯</button>
-        {menuOpen && <RowMenu actions={actions} onClose={() => setMenuOpen(false)} />}
+        <button ref={btnRef} type="button" className="row-more-btn" onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v); }}>⋯</button>
+        {menuOpen && <RowMenu btnRef={btnRef} actions={actions} onClose={() => setMenuOpen(false)} />}
       </div>
     </div>
   );
@@ -194,30 +203,10 @@ const AssemblyRow = ({ item, onDelete, onOpenEditor }: { item: SelectedBlock; on
   );
 };
 
-function BlockEditor({
-  block,
-  onSave,
-  onDirtyChange,
-  fontFamily,
-  fontSize,
-}: {
-  block: LicenseBlock;
-  onSave: (updated: LicenseBlock) => void;
-  onDirtyChange: (id: string, dirty: boolean) => void;
-  fontFamily: string;
-  fontSize: number;
+function BlockEditor({ block, onSave, fontFamily, fontSize }: {
+  block: LicenseBlock; onSave: (updated: LicenseBlock) => void; fontFamily: string; fontSize: number;
 }): JSX.Element {
   const [title, setTitle] = useState(block.title);
-  const [saved, setSaved] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const isDirtyRef = useRef(false);
-
-  const markDirty = () => {
-    if (!isDirtyRef.current) {
-      isDirtyRef.current = true;
-      onDirtyChange(block.id, true);
-    }
-  };
 
   const editor = useEditor({
     extensions: [
@@ -229,46 +218,27 @@ function BlockEditor({
     content: bodyToHtml(block),
   });
 
+  // Autosave content 1.5s after last change
   useEffect(() => {
     if (!editor) return;
-    const handler = () => markDirty();
-    editor.on('update', handler);
-    return () => { editor.off('update', handler); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor]);
-
-  useEffect(() => {
-    const id = block.id;
-    return () => {
-      if (isDirtyRef.current) {
-        isDirtyRef.current = false;
-        onDirtyChange(id, false);
-      }
+    let timer: ReturnType<typeof setTimeout>;
+    const handler = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const html = editor.getHTML();
+        onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
+      }, 1500);
     };
+    editor.on('update', handler);
+    return () => { editor.off('update', handler); clearTimeout(timer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [editor, title]);
 
-  const handleSave = (): void => {
+  // Autosave title on blur
+  const handleTitleBlur = () => {
     if (!editor) return;
     const html = editor.getHTML();
-    const paragraphs = htmlToParagraphs(html);
-    onSave({ ...block, title, body: html, paragraphs });
-    isDirtyRef.current = false;
-    onDirtyChange(block.id, false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  };
-
-  const handleImport = async (file: File): Promise<void> => {
-    try {
-      const { preamble, sections } = await parseDocx(file);
-      const allParas = [...preamble, ...sections.flatMap(s => [s.heading, ...s.paragraphs])];
-      const html = '<p>' + allParas.map(p => p.trim()).filter(Boolean).join('</p><p>') + '</p>';
-      editor?.commands.setContent(html);
-      markDirty();
-    } catch (e) {
-      console.error('Import error:', e);
-    }
+    onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
   };
 
   return (
@@ -277,7 +247,8 @@ function BlockEditor({
         <input
           className="block-editor__title-input"
           value={title}
-          onChange={e => { setTitle(e.target.value); markDirty(); }}
+          onChange={e => setTitle(e.target.value)}
+          onBlur={handleTitleBlur}
           placeholder="Название блока"
         />
         <div className="editor-tools">
@@ -295,12 +266,7 @@ function BlockEditor({
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addRowAfter().run(); }} title="Добавить строку">+▁</button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().deleteTable().run(); }} title="Удалить таблицу">✕⊞</button>
         </div>
-        <div className="editor-actions">
-          <button type="button" className="btn-ghost" onClick={() => fileInputRef.current?.click()}>Импорт .docx</button>
-          <button type="button" className={`btn-primary${saved ? ' btn-saved' : ''}`} onClick={handleSave}>
-            {saved ? '✓ Сохранено' : 'Сохранить'}
-          </button>
-        </div>
+        <div className="editor-actions" />
       </div>
 
       <div className="block-editor-canvas">
@@ -308,10 +274,6 @@ function BlockEditor({
           <EditorContent editor={editor} className="tiptap-editor" />
         </article>
       </div>
-
-      <input ref={fileInputRef} type="file" accept=".docx" style={{ display: 'none' }}
-        onChange={e => { const f = e.target.files?.[0]; if (f) void handleImport(f); e.target.value = ''; }}
-      />
     </>
   );
 }
@@ -335,6 +297,7 @@ const App = (): JSX.Element => {
   const [docIndex, setDocIndex] = useState<DocMeta[]>(loadDocIndex);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
   const [currentDocName, setCurrentDocName] = useState('Без названия');
+  const [autoSaveStatus, setAutoSaveStatus] = useState('');
   const [fontFamily, setFontFamily] = useState('Times New Roman');
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
@@ -346,7 +309,13 @@ const App = (): JSX.Element => {
     reqRight: FRAME_DEFAULTS.reqRight,
   });
 
-  const dirtyTabsRef = useRef(new Set<string>());
+  // Autosave document 2s after any state change
+  useEffect(() => {
+    setAutoSaveStatus('Сохраняется...');
+    const t = setTimeout(() => saveCurrentDoc(), 2000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameBlocks, availableBlocks, selectedBlocks, frame, fontFamily, fontSize]);
 
   // Wire Electron native menu → renderer actions
   useEffect(() => {
@@ -366,22 +335,12 @@ const App = (): JSX.Element => {
   const measureRef = useRef<HTMLDivElement>(null);
   const [pagedLines, setPagedLines] = useState<PreviewLine[][] | null>(null);
 
-  const handleDirtyChange = useCallback((id: string, dirty: boolean) => {
-    if (dirty) dirtyTabsRef.current.add(id);
-    else dirtyTabsRef.current.delete(id);
-  }, []);
-
   const openBlockEditor = (id: string): void => {
     setOpenTabIds(prev => prev.includes(id) ? prev : [...prev, id]);
     setActiveTab(id);
   };
 
   const closeTab = (id: string): void => {
-    if (dirtyTabsRef.current.has(id)) {
-      const ok = window.confirm('Блок изменён, но не сохранён. Закрыть без сохранения?');
-      if (!ok) return;
-    }
-    dirtyTabsRef.current.delete(id);
     setOpenTabIds(prev => prev.filter(t => t !== id));
     setActiveTab(prev => prev === id ? 'preview' : prev);
   };
@@ -415,7 +374,6 @@ const App = (): JSX.Element => {
       variables: [],
     };
     setFrameBlocks(prev => { const next = [...prev, newBlock]; saveFrameBlocks(next); return next; });
-    openBlockEditor(newBlock.id);
   };
 
   const addModuleBlock = (): void => {
@@ -428,7 +386,6 @@ const App = (): JSX.Element => {
       variables: [],
     };
     setAvailableBlocks(prev => { const next = [...prev, newBlock]; saveModuleBlocks(next); return next; });
-    openBlockEditor(newBlock.id);
   };
 
   const renameBlock = (id: string, isFrame: boolean): void => {
@@ -473,7 +430,7 @@ const App = (): JSX.Element => {
     setOpenTabIds([]); setActiveTab('preview');
   };
 
-  const saveCurrentDoc = (nameOverride?: string) => {
+  const saveCurrentDoc = useCallback((nameOverride?: string) => {
     const name = nameOverride ?? currentDocName;
     const id = currentDocId ?? `doc-${Date.now()}`;
     const doc: AppDoc = {
@@ -483,9 +440,12 @@ const App = (): JSX.Element => {
       frame, fontFamily, fontSize,
     };
     saveDocToStorage(doc);
-    setCurrentDocId(id); setCurrentDocName(name);
+    setCurrentDocId(id);
     setDocIndex(loadDocIndex());
-  };
+    setAutoSaveStatus('Сохранено');
+    setTimeout(() => setAutoSaveStatus(''), 2000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDocId, currentDocName, frameBlocks, availableBlocks, selectedBlocks, frame, fontFamily, fontSize]);
 
   const openDocById = (id: string) => {
     const doc = loadDocFromStorage(id);
@@ -636,24 +596,15 @@ const App = (): JSX.Element => {
       <header className="icloud-topbar">
         <span className="brand-copyright">© LicenseConstructor</span>
         <div className="topbar-doc">
-          <button type="button" className="doc-name-btn" onClick={() => setShowDocPicker(v => !v)}>
-            {currentDocName} ▾
-          </button>
+          <input
+            className="doc-name-input"
+            value={currentDocName}
+            onChange={e => setCurrentDocName(e.target.value)}
+            onBlur={() => saveCurrentDoc()}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          />
         </div>
-        <div className="topbar-actions">
-          <button type="button" className="btn-ghost" onClick={() => saveCurrentDoc()}>Сохранить</button>
-          <div className="export-menu-wrap">
-            <button type="button" className="btn-ghost" onClick={() => setShowFileMenu(v => !v)}>Файл ▾</button>
-            {showFileMenu && (
-              <div className="export-menu" style={{ left: 0, right: 'auto' }}>
-                <button type="button" onClick={() => { newDocument(); setShowFileMenu(false); }}>Новый документ</button>
-                <button type="button" onClick={() => { setShowDocPicker(true); setShowFileMenu(false); }}>Открыть...</button>
-                <button type="button" onClick={() => { const n = window.prompt('Сохранить как:', currentDocName); if (n) { setCurrentDocName(n); saveCurrentDoc(n); } setShowFileMenu(false); }}>Сохранить как...</button>
-                <button type="button" onClick={() => { setShowSettings(true); setShowFileMenu(false); }}>Настройки</button>
-              </div>
-            )}
-          </div>
-        </div>
+        <span className="autosave-status">{autoSaveStatus}</span>
       </header>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
@@ -737,7 +688,6 @@ const App = (): JSX.Element => {
                   key={id}
                   block={b}
                   onSave={saveBlockEdit}
-                  onDirtyChange={handleDirtyChange}
                   fontFamily={fontFamily}
                   fontSize={fontSize}
                 />

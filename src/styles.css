@@ -49,7 +49,27 @@ body {
 }
 .doc-name-btn:hover { background: rgba(0,0,0,0.05); }
 
-.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.doc-name-input {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  background: transparent;
+  border: none;
+  outline: none;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  width: 260px;
+}
+.doc-name-input:hover { background: rgba(0,0,0,0.04); }
+.doc-name-input:focus { background: #fff; box-shadow: 0 0 0 1px #d8d8dd; }
+
+.autosave-status {
+  font-size: 11px;
+  color: #aaa;
+  min-width: 80px;
+  text-align: right;
+}
 
 .brand-copyright {
   font-size: 13px;
