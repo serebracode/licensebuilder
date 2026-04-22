@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import { Extension } from '@tiptap/core';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -42,26 +43,47 @@ type AppDoc = {
 };
 type DocMeta = { id: string; name: string; updatedAt: number };
 
+// ── Storage abstraction (Electron = files, web = localStorage) ────────────────
+type ElectronBridge = {
+  platform?: string;
+  onMenu?: (channel: string, fn: () => void) => () => void;
+  selectDirectory?: () => Promise<string | null>;
+  getSettings?: () => Promise<Record<string, string>>;
+  docSave?: (doc: AppDoc) => Promise<void>;
+  docLoad?: (id: string) => Promise<AppDoc | null>;
+  docList?: () => Promise<DocMeta[]>;
+  docDelete?: (id: string) => Promise<void>;
+};
+const lb = (window as Window & { licenseBuilder?: ElectronBridge }).licenseBuilder;
+const IS_ELECTRON = typeof lb?.docSave === 'function';
+
 const DOC_INDEX_KEY = 'lb_doc_index_v1';
 const docKey = (id: string) => `lb_doc_${id}_v1`;
-
-function loadDocIndex(): DocMeta[] {
+function _lsLoadIndex(): DocMeta[] {
   try { return JSON.parse(localStorage.getItem(DOC_INDEX_KEY) ?? '[]'); } catch { return []; }
 }
-function saveDocToStorage(doc: AppDoc): void {
+
+async function storageSaveDoc(doc: AppDoc): Promise<void> {
+  if (IS_ELECTRON) { await lb!.docSave!(doc); return; }
   localStorage.setItem(docKey(doc.id), JSON.stringify(doc));
-  const idx = loadDocIndex();
+  const idx = _lsLoadIndex();
   const entry: DocMeta = { id: doc.id, name: doc.name, updatedAt: doc.updatedAt };
   const i = idx.findIndex(d => d.id === doc.id);
   if (i >= 0) idx[i] = entry; else idx.push(entry);
   localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(idx));
 }
-function loadDocFromStorage(id: string): AppDoc | null {
+async function storageLoadDoc(id: string): Promise<AppDoc | null> {
+  if (IS_ELECTRON) return lb!.docLoad!(id);
   try { return JSON.parse(localStorage.getItem(docKey(id)) ?? 'null'); } catch { return null; }
 }
-function deleteDocFromStorage(id: string): void {
+async function storageListDocs(): Promise<DocMeta[]> {
+  if (IS_ELECTRON) return lb!.docList!();
+  return _lsLoadIndex();
+}
+async function storageDeleteDoc(id: string): Promise<void> {
+  if (IS_ELECTRON) { await lb!.docDelete!(id); return; }
   localStorage.removeItem(docKey(id));
-  localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(loadDocIndex().filter(d => d.id !== id)));
+  localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(_lsLoadIndex().filter(d => d.id !== id)));
 }
 
 const DEFAULT_FRAME: DocFrame = {
@@ -78,8 +100,8 @@ function htmlToParagraphs(html: string): string[] {
   div.innerHTML = html;
   const result: string[] = [];
   div.querySelectorAll('p, li').forEach(el => {
-    const text = el.textContent?.trim();
-    if (text) result.push(text);
+    const text = el.textContent ?? '';
+    if (text.trim()) result.push(text);
   });
   return result;
 }
@@ -165,11 +187,11 @@ const RowMenu = ({ btnRef, actions, onClose }: { btnRef: React.RefObject<HTMLBut
   );
 };
 
-const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
+const FrameRow = ({ block, onOpenEditor, actions, isActive }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions; isActive: boolean }): JSX.Element => {
   const [menuOpen, setMenuOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   return (
-    <div className="block-row" onClick={() => onOpenEditor(block.id)}>
+    <div className={`block-row${isActive ? ' block-row--active' : ''}`} onClick={() => onOpenEditor(block.id)}>
       <div className="block-info">
         <div className="block-name">{block.title}</div>
         <div className="block-desc">{block.description}</div>
@@ -182,14 +204,14 @@ const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpe
   );
 };
 
-const AvailableRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
+const AvailableRow = ({ block, onOpenEditor, actions, isActive }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions; isActive: boolean }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `available:${block.id}` });
   const [menuOpen, setMenuOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   return (
     <div
       ref={setNodeRef}
-      className="block-row"
+      className={`block-row${isActive ? ' block-row--active' : ''}`}
       style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }}
       onClick={() => onOpenEditor(block.id)}
     >
@@ -236,25 +258,26 @@ const AssemblyRow = ({ item, onDelete, onOpenEditor }: { item: SelectedBlock; on
 
 // ── Toolbar SVG icons ────────────────────────────────────────────────────────
 const IcBold = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M4 2v10M4 2h3a2 2 0 0 1 0 4H4m0 0h3.5a2.5 2.5 0 0 1 0 5H4"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M7 5h6a3.5 3.5 0 0 1 0 7h-6l0 -7" />
+    <path d="M13 12h1a3.5 3.5 0 0 1 0 7h-7v-7" />
   </svg>
 );
 const IcItalic = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
-    <path d="M9.5 2h-4M8.5 12h-4M8 2 6 12"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M11 5l6 0" />
+    <path d="M7 19l6 0" />
+    <path d="M14 5l-4 14" />
   </svg>
 );
 const IcAlignLeft = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <rect x="1" y="2"   width="12" height="1.5" rx=".75"/><rect x="1" y="5.5" width="7.5" height="1.5" rx=".75"/>
-    <rect x="1" y="9"   width="12" height="1.5" rx=".75"/><rect x="1" y="12.5" width="7.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 6l16 0" /><path d="M4 12l16 0" /><path d="M4 18l12 0" />
   </svg>
 );
 const IcAlignCenter = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <rect x="1"   y="2"   width="12" height="1.5" rx=".75"/><rect x="3.25" y="5.5" width="7.5" height="1.5" rx=".75"/>
-    <rect x="1"   y="9"   width="12" height="1.5" rx=".75"/><rect x="3.25" y="12.5" width="7.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 6l16 0" /><path d="M8 12l8 0" /><path d="M6 18l12 0" />
   </svg>
 );
 const IcAlignRight = () => (
@@ -264,27 +287,26 @@ const IcAlignRight = () => (
   </svg>
 );
 const IcBulletList = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <circle cx="2" cy="3"  r="1.1"/><circle cx="2" cy="7"  r="1.1"/><circle cx="2" cy="11" r="1.1"/>
-    <rect x="4.5" y="2.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="6.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="10.25" width="8.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M21 6a1 1 0 0 1 -1 1h-10a1 1 0 1 1 0 -2h10a1 1 0 0 1 1 1" />
+    <path d="M21 12a1 1 0 0 1 -1 1h-10a1 1 0 0 1 0 -2h10a1 1 0 0 1 1 1" />
+    <path d="M21 18a1 1 0 0 1 -1 1h-10a1 1 0 0 1 0 -2h10a1 1 0 0 1 1 1" />
+    <path d="M7 5.995v.02c0 1.099 -.895 1.99 -2 1.99s-2 -.891 -2 -1.99v-.02c0 -1.099 .895 -1.99 2 -1.99s2 .891 2 1.99" />
+    <path d="M7 11.995v.02c0 1.099 -.895 1.99 -2 1.99s-2 -.891 -2 -1.99v-.02c0 -1.099 .895 -1.99 2 -1.99s2 .891 2 1.99" />
+    <path d="M7 17.995v.02c0 1.099 -.895 1.99 -2 1.99s-2 -.891 -2 -1.99v-.02c0 -1.099 .895 -1.99 2 -1.99s2 .891 2 1.99" />
   </svg>
 );
 const IcOrderedList = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <rect x="1.5" y="1.5" width="1" height="3"   rx=".4"/>
-    <rect x="1"   y="6"   width="2.5" height=".9" rx=".4"/><rect x="2.2" y="6.9" width="1.3" height=".9" rx=".4"/><rect x="1" y="7.8" width="2.5" height=".9" rx=".4"/>
-    <rect x="1"   y="10.5" width="2.5" height=".8" rx=".4"/><rect x="2.2" y="11.3" width="1.3" height=".8" rx=".4"/><rect x="1" y="12.1" width="2.5" height=".8" rx=".4"/>
-    <rect x="4.5" y="2.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="6.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="10.25" width="8.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M11 6h9" /><path d="M11 12h9" /><path d="M12 18h8" />
+    <path d="M4 16a2 2 0 1 1 4 0c0 .591 -.5 1 -1 1.5l-3 2.5h4" />
+    <path d="M6 10v-6l-2 2" />
   </svg>
 );
 const IcTable = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
-    <rect x="1" y="1" width="12" height="12" rx="1.5"/>
-    <path d="M1 5h12M1 9h12M5 1v12M9 1v12"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" />
+    <path d="M3 10h18" /><path d="M10 3v18" />
   </svg>
 );
 const IcAddCol = () => (
@@ -302,10 +324,15 @@ const IcAddRow = () => (
   </svg>
 );
 const IcDelTable = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M7 3h12a2 2 0 0 1 2 2v12m-.585 3.413a1.994 1.994 0 0 1 -1.415 .587h-14a2 2 0 0 1 -2 -2v-14c0 -.55 .223 -1.05 .583 -1.412" />
+    <path d="M3 10h7m4 0h7" /><path d="M10 3v3m0 4v11" />
+    <path d="M3 3l18 18" />
+  </svg>
+);
+const IcCols1 = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
-    <rect x="1" y="1" width="12" height="12" rx="1.5"/>
-    <path d="M1 5h12M1 9h12M5 1v12M9 1v12"/>
-    <path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="#c00" strokeWidth="1.4" strokeLinecap="round"/>
+    <rect x="2" y="2" width="10" height="10" rx="1"/>
   </svg>
 );
 const IcCols2 = () => (
@@ -321,6 +348,19 @@ const IcCols3 = () => (
     <rect x="9.5"  y="2" width="3.5" height="10" rx="1"/>
   </svg>
 );
+
+// Tab key inserts «красная строка» (two em spaces) when outside a list
+const TabIndent = Extension.create({
+  name: 'tabIndent',
+  addKeyboardShortcuts() {
+    return {
+      Tab: ({ editor }) => {
+        if (editor.isActive('listItem')) return false;
+        return editor.commands.insertContent('  ');
+      },
+    };
+  },
+});
 
 // Table extension that preserves class attribute (needed for cols-layout)
 const TableWithClass = Table.configure({ resizable: false }).extend({
@@ -339,7 +379,13 @@ const TableWithClass = Table.configure({ resizable: false }).extend({
 function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   block: LicenseBlock; onSave: (updated: LicenseBlock) => void; fontFamily: string; fontSize: number;
 }): JSX.Element {
-  const [title, setTitle] = useState(block.title);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const isDirtyRef = useRef(false);
+  const blockRef = useRef(block);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  blockRef.current = block;
 
   const editor = useEditor({
     extensions: [
@@ -347,30 +393,37 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
       TextAlign.configure({ types: ['paragraph', 'heading'] }),
       TableWithClass,
       TableRow, TableHeader, TableCell,
+      TabIndent,
     ],
     content: bodyToHtml(block),
+    onUpdate: () => {
+      setIsDirty(true);
+      isDirtyRef.current = true;
+    },
   });
 
-  // Autosave content 1.5s after last change
-  useEffect(() => {
-    if (!editor) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const handler = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const html = editor.getHTML();
-        onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
-      }, 1500);
-    };
-    editor.on('update', handler);
-    return () => { editor.off('update', handler); clearTimeout(timer); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, title]);
+  const editorRef = useRef(editor);
+  useEffect(() => { editorRef.current = editor; }, [editor]);
 
-  const handleTitleBlur = () => {
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current && editorRef.current) {
+        const html = editorRef.current.getHTML();
+        onSaveRef.current({
+          ...blockRef.current,
+          body: html,
+          paragraphs: htmlToParagraphs(html),
+        });
+      }
+    };
+  }, []);
+
+  const handleApply = () => {
     if (!editor) return;
     const html = editor.getHTML();
-    onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
+    onSave({ ...block, body: html, paragraphs: htmlToParagraphs(html) });
+    setIsDirty(false);
+    isDirtyRef.current = false;
   };
 
   const insertColLayout = (cols: number) => {
@@ -390,33 +443,30 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   return (
     <>
       <div className="block-editor-toolbar">
-        <input
-          className="block-editor__title-input"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onBlur={handleTitleBlur}
-          placeholder="Название блока"
-        />
         <div className="editor-tools">
-          {T(!!editor?.isActive('bold'),   () => editor?.chain().focus().toggleBold().run(),       'Жирный',           IcBold)}
-          {T(!!editor?.isActive('italic'), () => editor?.chain().focus().toggleItalic().run(),     'Курсив',           IcItalic)}
+          {T(!!editor?.isActive('bold'),   () => editor?.chain().focus().toggleBold().run(),       'Жирный',     IcBold)}
+          {T(!!editor?.isActive('italic'), () => editor?.chain().focus().toggleItalic().run(),     'Курсив',     IcItalic)}
           <div className="format-separator" />
           {T(!!editor?.isActive({ textAlign: 'left' }),   () => editor?.chain().focus().setTextAlign('left').run(),   'По левому краю', IcAlignLeft)}
           {T(!!editor?.isActive({ textAlign: 'center' }), () => editor?.chain().focus().setTextAlign('center').run(), 'По центру',      IcAlignCenter)}
-          {T(!!editor?.isActive({ textAlign: 'right' }),  () => editor?.chain().focus().setTextAlign('right').run(),  'По правому краю', IcAlignRight)}
           <div className="format-separator" />
-          {T(!!editor?.isActive('bulletList'),  () => editor?.chain().focus().toggleBulletList().run(),  'Маркированный список',  IcBulletList)}
-          {T(!!editor?.isActive('orderedList'), () => editor?.chain().focus().toggleOrderedList().run(), 'Нумерованный список',   IcOrderedList)}
+          {T(!!editor?.isActive('bulletList'),  () => editor?.chain().focus().toggleBulletList().run(),  'Маркированный список', IcBulletList)}
+          {T(!!editor?.isActive('orderedList'), () => editor?.chain().focus().toggleOrderedList().run(), 'Нумерованный список',  IcOrderedList)}
           <div className="format-separator" />
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }} title="Вставить таблицу"><IcTable /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addColumnAfter().run(); }} title="Добавить столбец"><IcAddCol /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addRowAfter().run(); }} title="Добавить строку"><IcAddRow /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().deleteTable().run(); }} title="Удалить таблицу"><IcDelTable /></button>
           <div className="format-separator" />
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(1); }} title="1 колонка"><IcCols1 /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(2); }} title="2 колонки"><IcCols2 /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(3); }} title="3 колонки"><IcCols3 /></button>
         </div>
-        <div className="editor-actions" />
+        <div className="editor-actions">
+          {isDirty && (
+            <button type="button" className="btn-apply" onClick={handleApply}>Применить</button>
+          )}
+        </div>
       </div>
 
       <div className="block-editor-canvas">
@@ -438,15 +488,13 @@ const App = (): JSX.Element => {
   const [leftTab, setLeftTab] = useState<'frame' | 'assembly'>('frame');
   const [activeTab, setActiveTab] = useState<'preview' | string>('preview');
   const [openTabIds, setOpenTabIds] = useState<string[]>([]);
-  const [variables, setVariables] = useState<Record<string, string>>({ company_name: '', contract_date: '' });
-  const [showVarsPopup, setShowVarsPopup] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
-  const [docIndex, setDocIndex] = useState<DocMeta[]>(loadDocIndex);
+  const [docIndex, setDocIndex] = useState<DocMeta[]>([]);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
-  const [currentDocName, setCurrentDocName] = useState('Без названия');
+  const [currentDocName, setCurrentDocName] = useState('Новый');
   const [autoSaveStatus, setAutoSaveStatus] = useState('');
   const [fontFamily, setFontFamily] = useState('Times New Roman');
   const [isBold, setIsBold] = useState(false);
@@ -457,17 +505,19 @@ const App = (): JSX.Element => {
     reqRight: FRAME_DEFAULTS.reqRight,
   });
 
+  // Load doc index on mount
+  useEffect(() => { storageListDocs().then(setDocIndex); }, []);
+
   // Autosave document 2s after any state change
   useEffect(() => {
     setAutoSaveStatus('Сохраняется...');
-    const t = setTimeout(() => saveCurrentDoc(), 2000);
+    const t = setTimeout(() => { void saveCurrentDoc(); }, 2000);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameBlocks, availableBlocks, selectedBlocks, frame, fontFamily, fontSize]);
 
   // Wire Electron native menu → renderer actions
   useEffect(() => {
-    const lb = (window as typeof window & { licenseBuilder?: typeof window.licenseBuilder }).licenseBuilder;
     if (!lb?.onMenu) return;
     const offs = [
       lb.onMenu('menu:new', () => newDocument()),
@@ -581,7 +631,7 @@ const App = (): JSX.Element => {
     setOpenTabIds([]); setActiveTab('preview');
   };
 
-  const saveCurrentDoc = useCallback((nameOverride?: string) => {
+  const saveCurrentDoc = useCallback(async (nameOverride?: string) => {
     const name = nameOverride ?? currentDocName;
     const id = currentDocId ?? `doc-${Date.now()}`;
     const doc: AppDoc = {
@@ -590,16 +640,16 @@ const App = (): JSX.Element => {
       assembledModules: selectedBlocks.map(s => ({ instanceId: s.instanceId, blockId: s.block.id })),
       frame, fontFamily, fontSize,
     };
-    saveDocToStorage(doc);
+    await storageSaveDoc(doc);
     setCurrentDocId(id);
-    setDocIndex(loadDocIndex());
+    storageListDocs().then(setDocIndex);
     setAutoSaveStatus('Сохранено');
     setTimeout(() => setAutoSaveStatus(''), 2000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDocId, currentDocName, frameBlocks, availableBlocks, selectedBlocks, frame, fontFamily, fontSize]);
 
-  const openDocById = (id: string) => {
-    const doc = loadDocFromStorage(id);
+  const openDocById = async (id: string) => {
+    const doc = await storageLoadDoc(id);
     if (doc) { applyDoc(doc); setShowDocPicker(false); }
   };
 
@@ -609,22 +659,16 @@ const App = (): JSX.Element => {
     setAvailableBlocks(DEFAULT_MODULE_BLOCKS);
     setSelectedBlocks([]); setFrame(DEFAULT_FRAME);
     setFontFamily('Times New Roman'); setFontSize(11);
-    setCurrentDocId(null); setCurrentDocName('Без названия');
+    setCurrentDocId(null); setCurrentDocName('Новый');
     setOpenTabIds([]); setActiveTab('preview');
   };
 
-  const deleteDocById = (id: string) => {
+  const deleteDocById = async (id: string) => {
     if (!window.confirm('Удалить документ?')) return;
-    deleteDocFromStorage(id);
-    setDocIndex(loadDocIndex());
-    if (currentDocId === id) { setCurrentDocId(null); setCurrentDocName('Без названия'); }
+    await storageDeleteDoc(id);
+    storageListDocs().then(setDocIndex);
+    if (currentDocId === id) { setCurrentDocId(null); setCurrentDocName('Новый'); }
   };
-
-  const requiredVariables = useMemo(() => {
-    const vars = new Set<string>(['company_name', 'contract_date']);
-    selectedBlocks.forEach(({ block }) => block.variables.forEach(name => vars.add(name)));
-    return [...vars];
-  }, [selectedBlocks]);
 
   const previewLines = useMemo((): PreviewLine[] => {
     const lines: PreviewLine[] = [];
@@ -635,28 +679,27 @@ const App = (): JSX.Element => {
 
       if (btype === 'title') {
         const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
-        paras.forEach(p => { if (p.trim()) lines.push({ text: replaceVars(p.trim(), variables), type: 'heading' }); });
+        paras.forEach(p => { if (p.trim()) lines.push({ text: p, type: 'heading' }); });
         continue;
       }
 
       if (btype === 'preamble') {
         const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
-        paras.forEach(p => { if (p.trim()) lines.push({ text: replaceVars(p.trim(), variables), type: 'text' }); });
+        paras.forEach(p => { if (p.trim()) lines.push({ text: p, type: 'text' }); });
         continue;
       }
 
       if (btype === 'modules') {
         articleNum++;
-        lines.push({ text: `${articleNum}. ${replaceVars(block.title, variables)}`, type: 'heading' });
+        lines.push({ text: `${articleNum}. ${block.title}`, type: 'heading' });
         if (selectedBlocks.length === 0) {
           lines.push({ text: '(добавьте модули в сборку)', type: 'para' });
         } else {
           selectedBlocks.forEach(({ block: mod }, si) => {
             const sub = si + 1;
-            lines.push({ text: `${articleNum}.${sub}. ${mod.title}`, type: 'subheading' });
             const paras = mod.paragraphs?.length ? mod.paragraphs : htmlToParagraphs(mod.body);
             paras.forEach((p, j) => {
-              lines.push({ text: `${articleNum}.${sub}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
+              lines.push({ text: `${articleNum}.${sub}.${j + 1}. ${p}`, type: 'para' });
             });
           });
         }
@@ -668,12 +711,12 @@ const App = (): JSX.Element => {
       lines.push({ text: `${articleNum}. ${block.title}`, type: 'heading' });
       const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
       paras.forEach((p, j) => {
-        lines.push({ text: `${articleNum}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
+        lines.push({ text: `${articleNum}.${j + 1}. ${p}`, type: 'para' });
       });
     }
 
     return lines;
-  }, [frameBlocks, selectedBlocks, variables]);
+  }, [frameBlocks, selectedBlocks]);
 
   // Measure actual rendered heights and split into A4 pages
   const A4_CONTENT_H = 1123 - 38 - 50; // content height: A4 minus top(38) and bottom(50) padding
@@ -766,7 +809,18 @@ const App = (): JSX.Element => {
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           />
         </div>
-        <span className="autosave-status">{autoSaveStatus}</span>
+        <div className="topbar-right">
+          <span className="autosave-status">{autoSaveStatus}</span>
+          <div className="export-menu-wrap">
+            <button className="btn-ghost" type="button" onClick={() => setShowExportMenu(v => !v)}>Экспорт ▾</button>
+            {showExportMenu && (
+              <div className="export-menu">
+                <button type="button">Экспорт .docx</button>
+                <button type="button">Экспорт .pdf</button>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
@@ -783,7 +837,7 @@ const App = (): JSX.Element => {
                   <span className="section-label">Статьи рамки</span>
                   <button type="button" className="btn-add" onClick={addFrameBlock}>+ Добавить</button>
                 </div>
-                {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} actions={{ onRename: () => renameBlock(block.id, true), onDuplicate: () => duplicateBlock(block.id, true), onDelete: () => deleteBlock(block.id, true) }} />)}
+                {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} isActive={activeTab === block.id} actions={{ onRename: () => renameBlock(block.id, true), onDuplicate: () => duplicateBlock(block.id, true), onDelete: () => deleteBlock(block.id, true) }} />)}
               </div>
             )}
 
@@ -794,7 +848,7 @@ const App = (): JSX.Element => {
                     <span className="section-label">Модули</span>
                     <button type="button" className="btn-add" onClick={addModuleBlock}>+ Добавить</button>
                   </div>
-                  {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} actions={{ onRename: () => renameBlock(block.id, false), onDuplicate: () => duplicateBlock(block.id, false), onDelete: () => deleteBlock(block.id, false) }} />)}
+                  {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} isActive={activeTab === block.id} actions={{ onRename: () => renameBlock(block.id, false), onDuplicate: () => duplicateBlock(block.id, false), onDelete: () => deleteBlock(block.id, false) }} />)}
                 </div>
                 <div className="h-divider" />
                 <div className="section-label">Сборка</div>
@@ -826,21 +880,6 @@ const App = (): JSX.Element => {
               })}
             </div>
 
-            {activeTab === 'preview' && (
-              <div className="preview-toolbar">
-                <div className="editor-tools" />
-                <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup(v => !v)}>Переменные</button>
-                <div className="export-menu-wrap">
-                  <button className="btn-ghost" type="button" onClick={() => setShowExportMenu(v => !v)}>Экспорт ▾</button>
-                  {showExportMenu ? (
-                    <div className="export-menu">
-                      <button type="button">Экспорт .docx</button>
-                      <button type="button">Экспорт .pdf</button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            )}
 
             {openTabIds.map(id => {
               const b = findBlock(id);
@@ -907,8 +946,8 @@ const App = (): JSX.Element => {
               {/* Requisites sheet */}
               <article className="docs-paper docs-paper--reqs" style={paperStyle}>
                 <div className="reqs-columns">
-                  <div className="reqs-col">{replaceVars(frame.reqLeft, variables)}</div>
-                  <div className="reqs-col">{replaceVars(frame.reqRight, variables)}</div>
+                  <div className="reqs-col">{frame.reqLeft}</div>
+                  <div className="reqs-col">{frame.reqRight}</div>
                 </div>
               </article>
             </div>
@@ -927,75 +966,6 @@ const App = (): JSX.Element => {
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {showVarsPopup ? (
-        <div className="popup-backdrop" onClick={() => setShowVarsPopup(false)}>
-          <div className="popup" onClick={e => e.stopPropagation()}>
-            <h3>Переменные договора</h3>
-            <div className="popup-grid">
-              {requiredVariables.map(name => (
-                <label key={name}>
-                  {name}
-                  <input value={variables[name] ?? ''} onChange={e => setVariables(prev => ({ ...prev, [name]: e.target.value }))} />
-                </label>
-              ))}
-            </div>
-
-            <div className="popup-divider" />
-            <h4 className="popup-section-title">Настройки документа</h4>
-            <div className="doc-settings-grid">
-              <label>
-                Шрифт
-                <select value={fontFamily} onChange={e => setFontFamily(e.target.value)}>
-                  <option>Times New Roman</option>
-                  <option>Arial</option>
-                  <option>Helvetica</option>
-                  <option>Georgia</option>
-                </select>
-              </label>
-              <label>
-                Размер
-                <select value={fontSize} onChange={e => setFontSize(Number(e.target.value))}>
-                  <option value={11}>11</option><option value={12}>12</option><option value={13}>13</option>
-                  <option value={14}>14</option><option value={16}>16</option><option value={18}>18</option>
-                </select>
-              </label>
-              <label>
-                Начертание
-                <div className="doc-settings-row">
-                  <button type="button" className={`btn-tool${isBold ? ' active' : ''}`} onClick={() => setIsBold(v => !v)}>B</button>
-                  <button type="button" className={`btn-tool${isItalic ? ' active' : ''}`} onClick={() => setIsItalic(v => !v)}>I</button>
-                </div>
-              </label>
-            </div>
-
-            <div className="popup-divider" />
-            <h4 className="popup-section-title">Реквизиты</h4>
-            <label className="popup-full-label">
-              Реквизиты — лицензиар
-              <textarea
-                className="popup-textarea"
-                value={frame.reqLeft}
-                onChange={e => setFrame(prev => ({ ...prev, reqLeft: e.target.value }))}
-                rows={5}
-              />
-            </label>
-            <label className="popup-full-label">
-              Реквизиты — лицензиат
-              <textarea
-                className="popup-textarea"
-                value={frame.reqRight}
-                onChange={e => setFrame(prev => ({ ...prev, reqRight: e.target.value }))}
-                rows={5}
-              />
-            </label>
-
-            <div className="popup-actions">
-              <button className="btn-primary" type="button" onClick={() => setShowVarsPopup(false)}>Готово</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {showDocPicker && (
         <div className="popup-backdrop" onClick={() => setShowDocPicker(false)}>
