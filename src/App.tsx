@@ -33,7 +33,7 @@ import { parseDocx } from './docx-parser';
 type SelectedBlock = { instanceId: string; block: LicenseBlock };
 type PreviewLine = { text: string; type: 'heading' | 'subheading' | 'para' | 'text' };
 
-type DocFrame = { header: string; article3Title: string; reqLeft: string; reqRight: string };
+type DocFrame = { reqLeft: string; reqRight: string };
 type AppDoc = {
   id: string; name: string; updatedAt: number;
   frameBlocks: LicenseBlock[]; moduleBlocks: LicenseBlock[];
@@ -65,8 +65,8 @@ function deleteDocFromStorage(id: string): void {
 }
 
 const DEFAULT_FRAME: DocFrame = {
-  header: FRAME_DEFAULTS.header, article3Title: FRAME_DEFAULTS.article3Title,
-  reqLeft: FRAME_DEFAULTS.reqLeft, reqRight: FRAME_DEFAULTS.reqRight,
+  reqLeft: FRAME_DEFAULTS.reqLeft,
+  reqRight: FRAME_DEFAULTS.reqRight,
 };
 
 const replaceVars = (text: string, values: Record<string, string>): string =>
@@ -234,6 +234,108 @@ const AssemblyRow = ({ item, onDelete, onOpenEditor }: { item: SelectedBlock; on
   );
 };
 
+// ── Toolbar SVG icons ────────────────────────────────────────────────────────
+const IcBold = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 2v10M4 2h3a2 2 0 0 1 0 4H4m0 0h3.5a2.5 2.5 0 0 1 0 5H4"/>
+  </svg>
+);
+const IcItalic = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+    <path d="M9.5 2h-4M8.5 12h-4M8 2 6 12"/>
+  </svg>
+);
+const IcAlignLeft = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+    <rect x="1" y="2"   width="12" height="1.5" rx=".75"/><rect x="1" y="5.5" width="7.5" height="1.5" rx=".75"/>
+    <rect x="1" y="9"   width="12" height="1.5" rx=".75"/><rect x="1" y="12.5" width="7.5" height="1.5" rx=".75"/>
+  </svg>
+);
+const IcAlignCenter = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+    <rect x="1"   y="2"   width="12" height="1.5" rx=".75"/><rect x="3.25" y="5.5" width="7.5" height="1.5" rx=".75"/>
+    <rect x="1"   y="9"   width="12" height="1.5" rx=".75"/><rect x="3.25" y="12.5" width="7.5" height="1.5" rx=".75"/>
+  </svg>
+);
+const IcAlignRight = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+    <rect x="1"   y="2"   width="12" height="1.5" rx=".75"/><rect x="5.5" y="5.5" width="7.5" height="1.5" rx=".75"/>
+    <rect x="1"   y="9"   width="12" height="1.5" rx=".75"/><rect x="5.5" y="12.5" width="7.5" height="1.5" rx=".75"/>
+  </svg>
+);
+const IcBulletList = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+    <circle cx="2" cy="3"  r="1.1"/><circle cx="2" cy="7"  r="1.1"/><circle cx="2" cy="11" r="1.1"/>
+    <rect x="4.5" y="2.25" width="8.5" height="1.5" rx=".75"/>
+    <rect x="4.5" y="6.25" width="8.5" height="1.5" rx=".75"/>
+    <rect x="4.5" y="10.25" width="8.5" height="1.5" rx=".75"/>
+  </svg>
+);
+const IcOrderedList = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+    <rect x="1.5" y="1.5" width="1" height="3"   rx=".4"/>
+    <rect x="1"   y="6"   width="2.5" height=".9" rx=".4"/><rect x="2.2" y="6.9" width="1.3" height=".9" rx=".4"/><rect x="1" y="7.8" width="2.5" height=".9" rx=".4"/>
+    <rect x="1"   y="10.5" width="2.5" height=".8" rx=".4"/><rect x="2.2" y="11.3" width="1.3" height=".8" rx=".4"/><rect x="1" y="12.1" width="2.5" height=".8" rx=".4"/>
+    <rect x="4.5" y="2.25" width="8.5" height="1.5" rx=".75"/>
+    <rect x="4.5" y="6.25" width="8.5" height="1.5" rx=".75"/>
+    <rect x="4.5" y="10.25" width="8.5" height="1.5" rx=".75"/>
+  </svg>
+);
+const IcTable = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+    <rect x="1" y="1" width="12" height="12" rx="1.5"/>
+    <path d="M1 5h12M1 9h12M5 1v12M9 1v12"/>
+  </svg>
+);
+const IcAddCol = () => (
+  <svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+    <rect x="1" y="1" width="9" height="12" rx="1.5"/>
+    <path d="M1 5h9M1 9h9M4.5 1v12"/>
+    <path d="M12 4.5v5M9.5 7H14" strokeLinecap="round"/>
+  </svg>
+);
+const IcAddRow = () => (
+  <svg width="14" height="16" viewBox="0 0 14 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+    <rect x="1" y="1" width="12" height="9" rx="1.5"/>
+    <path d="M1 5h12M1 7h12M5 1v9M9 1v9"/>
+    <path d="M3.5 12h7M7 9.5v5" strokeLinecap="round"/>
+  </svg>
+);
+const IcDelTable = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+    <rect x="1" y="1" width="12" height="12" rx="1.5"/>
+    <path d="M1 5h12M1 9h12M5 1v12M9 1v12"/>
+    <path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="#c00" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+);
+const IcCols2 = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+    <rect x="1"   y="2" width="5.5" height="10" rx="1"/>
+    <rect x="7.5" y="2" width="5.5" height="10" rx="1"/>
+  </svg>
+);
+const IcCols3 = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+    <rect x="1"    y="2" width="3.5" height="10" rx="1"/>
+    <rect x="5.25" y="2" width="3.5" height="10" rx="1"/>
+    <rect x="9.5"  y="2" width="3.5" height="10" rx="1"/>
+  </svg>
+);
+
+// Table extension that preserves class attribute (needed for cols-layout)
+const TableWithClass = Table.configure({ resizable: false }).extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      class: {
+        default: null,
+        parseHTML: el => el.getAttribute('class'),
+        renderHTML: attrs => (attrs.class ? { class: attrs.class } : {}),
+      },
+    };
+  },
+});
+
 function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   block: LicenseBlock; onSave: (updated: LicenseBlock) => void; fontFamily: string; fontSize: number;
 }): JSX.Element {
@@ -243,7 +345,7 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
     extensions: [
       StarterKit,
       TextAlign.configure({ types: ['paragraph', 'heading'] }),
-      Table.configure({ resizable: false }),
+      TableWithClass,
       TableRow, TableHeader, TableCell,
     ],
     content: bodyToHtml(block),
@@ -265,12 +367,25 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, title]);
 
-  // Autosave title on blur
   const handleTitleBlur = () => {
     if (!editor) return;
     const html = editor.getHTML();
     onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
   };
+
+  const insertColLayout = (cols: number) => {
+    if (!editor) return;
+    const cells = Array.from({ length: cols }, () => '<td><p></p></td>').join('');
+    editor.chain().focus().insertContent(
+      `<table class="cols-layout"><tbody><tr>${cells}</tr></tbody></table>`
+    ).run();
+  };
+
+  const T = (active: boolean, onClick: () => void, title: string, Icon: () => JSX.Element) => (
+    <button type="button" className={`btn-tool${active ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); onClick(); }} title={title}>
+      <Icon />
+    </button>
+  );
 
   return (
     <>
@@ -283,19 +398,23 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
           placeholder="Название блока"
         />
         <div className="editor-tools">
-          <button type="button" className={`btn-tool${editor?.isActive('bold') ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run(); }} title="Жирный">B</button>
+          {T(!!editor?.isActive('bold'),   () => editor?.chain().focus().toggleBold().run(),       'Жирный',           IcBold)}
+          {T(!!editor?.isActive('italic'), () => editor?.chain().focus().toggleItalic().run(),     'Курсив',           IcItalic)}
           <div className="format-separator" />
-          <button type="button" className={`btn-tool${editor?.isActive({ textAlign: 'left' }) ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('left').run(); }} title="По левому краю">⇤</button>
-          <button type="button" className={`btn-tool${editor?.isActive({ textAlign: 'center' }) ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('center').run(); }} title="По центру">≡</button>
-          <button type="button" className={`btn-tool${editor?.isActive({ textAlign: 'right' }) ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('right').run(); }} title="По правому краю">⇥</button>
+          {T(!!editor?.isActive({ textAlign: 'left' }),   () => editor?.chain().focus().setTextAlign('left').run(),   'По левому краю', IcAlignLeft)}
+          {T(!!editor?.isActive({ textAlign: 'center' }), () => editor?.chain().focus().setTextAlign('center').run(), 'По центру',      IcAlignCenter)}
+          {T(!!editor?.isActive({ textAlign: 'right' }),  () => editor?.chain().focus().setTextAlign('right').run(),  'По правому краю', IcAlignRight)}
           <div className="format-separator" />
-          <button type="button" className={`btn-tool${editor?.isActive('orderedList') ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleOrderedList().run(); }} title="Нумерованный список">1.</button>
-          <button type="button" className={`btn-tool${editor?.isActive('bulletList') ? ' active' : ''}`} onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run(); }} title="Маркированный список">•</button>
+          {T(!!editor?.isActive('bulletList'),  () => editor?.chain().focus().toggleBulletList().run(),  'Маркированный список',  IcBulletList)}
+          {T(!!editor?.isActive('orderedList'), () => editor?.chain().focus().toggleOrderedList().run(), 'Нумерованный список',   IcOrderedList)}
           <div className="format-separator" />
-          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }} title="Вставить таблицу">⊞</button>
-          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addColumnAfter().run(); }} title="Добавить столбец">+▕</button>
-          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addRowAfter().run(); }} title="Добавить строку">+▁</button>
-          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().deleteTable().run(); }} title="Удалить таблицу">✕⊞</button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }} title="Вставить таблицу"><IcTable /></button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addColumnAfter().run(); }} title="Добавить столбец"><IcAddCol /></button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addRowAfter().run(); }} title="Добавить строку"><IcAddRow /></button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().deleteTable().run(); }} title="Удалить таблицу"><IcDelTable /></button>
+          <div className="format-separator" />
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(2); }} title="2 колонки"><IcCols2 /></button>
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(3); }} title="3 колонки"><IcCols3 /></button>
         </div>
         <div className="editor-actions" />
       </div>
@@ -333,9 +452,7 @@ const App = (): JSX.Element => {
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [fontSize, setFontSize] = useState(11);
-  const [frame, setFrame] = useState({
-    header: FRAME_DEFAULTS.header,
-    article3Title: FRAME_DEFAULTS.article3Title,
+  const [frame, setFrame] = useState<DocFrame>({
     reqLeft: FRAME_DEFAULTS.reqLeft,
     reqRight: FRAME_DEFAULTS.reqRight,
   });
@@ -453,7 +570,10 @@ const App = (): JSX.Element => {
       return block ? { instanceId, block } : null;
     }).filter(Boolean) as SelectedBlock[];
     setSelectedBlocks(assembled);
-    setFrame(doc.frame);
+    setFrame({
+      reqLeft: doc.frame.reqLeft ?? FRAME_DEFAULTS.reqLeft,
+      reqRight: doc.frame.reqRight ?? FRAME_DEFAULTS.reqRight,
+    });
     setFontFamily(doc.fontFamily ?? 'Times New Roman');
     setFontSize(doc.fontSize ?? 11);
     setCurrentDocId(doc.id);
@@ -508,43 +628,52 @@ const App = (): JSX.Element => {
 
   const previewLines = useMemo((): PreviewLine[] => {
     const lines: PreviewLine[] = [];
+    let articleNum = 0;
 
-    // Preamble / header
-    frame.header.trim().split('\n').forEach(line => {
-      if (line.trim()) lines.push({ text: replaceVars(line.trim(), variables), type: 'text' });
-    });
+    for (const block of frameBlocks) {
+      const btype = block.blockType ?? 'article';
 
-    const renderFrameArticle = (block: LicenseBlock, artNum: number) => {
-      lines.push({ text: `${artNum}. ${block.title}`, type: 'heading' });
+      if (btype === 'title') {
+        const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
+        paras.forEach(p => { if (p.trim()) lines.push({ text: replaceVars(p.trim(), variables), type: 'heading' }); });
+        continue;
+      }
+
+      if (btype === 'preamble') {
+        const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
+        paras.forEach(p => { if (p.trim()) lines.push({ text: replaceVars(p.trim(), variables), type: 'text' }); });
+        continue;
+      }
+
+      if (btype === 'modules') {
+        articleNum++;
+        lines.push({ text: `${articleNum}. ${replaceVars(block.title, variables)}`, type: 'heading' });
+        if (selectedBlocks.length === 0) {
+          lines.push({ text: '(добавьте модули в сборку)', type: 'para' });
+        } else {
+          selectedBlocks.forEach(({ block: mod }, si) => {
+            const sub = si + 1;
+            lines.push({ text: `${articleNum}.${sub}. ${mod.title}`, type: 'subheading' });
+            const paras = mod.paragraphs?.length ? mod.paragraphs : htmlToParagraphs(mod.body);
+            paras.forEach((p, j) => {
+              lines.push({ text: `${articleNum}.${sub}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
+            });
+          });
+        }
+        continue;
+      }
+
+      // default: article
+      articleNum++;
+      lines.push({ text: `${articleNum}. ${block.title}`, type: 'heading' });
       const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
       paras.forEach((p, j) => {
-        lines.push({ text: `${artNum}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
-      });
-    };
-
-    // Articles 1, 2
-    frameBlocks.slice(0, 2).forEach((block, i) => renderFrameArticle(block, i + 1));
-
-    // Article 3 – assembled from modules
-    lines.push({ text: `3. ${replaceVars(frame.article3Title, variables)}`, type: 'heading' });
-    if (selectedBlocks.length === 0) {
-      lines.push({ text: '(добавьте модули в сборку)', type: 'para' });
-    } else {
-      selectedBlocks.forEach(({ block }, si) => {
-        const sub = si + 1;
-        lines.push({ text: `3.${sub}. ${block.title}`, type: 'subheading' });
-        const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
-        paras.forEach((p, j) => {
-          lines.push({ text: `3.${sub}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
-        });
+        lines.push({ text: `${articleNum}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
       });
     }
 
-    // Articles 4-9 (frameBlocks[2+])
-    frameBlocks.slice(2).forEach((block, i) => renderFrameArticle(block, i + 4));
-
     return lines;
-  }, [frameBlocks, selectedBlocks, variables, frame]);
+  }, [frameBlocks, selectedBlocks, variables]);
 
   // Measure actual rendered heights and split into A4 pages
   const A4_CONTENT_H = 1123 - 38 - 50; // content height: A4 minus top(38) and bottom(50) padding
@@ -841,25 +970,7 @@ const App = (): JSX.Element => {
             </div>
 
             <div className="popup-divider" />
-            <h4 className="popup-section-title">Рамка договора</h4>
-            <label className="popup-full-label">
-              Шапка договора
-              <textarea
-                className="popup-textarea"
-                value={frame.header}
-                onChange={e => setFrame(prev => ({ ...prev, header: e.target.value }))}
-                rows={4}
-              />
-            </label>
-            <label className="popup-full-label">
-              Заголовок статьи 3
-              <input
-                className="popup-textarea"
-                style={{ padding: '6px 8px' }}
-                value={frame.article3Title}
-                onChange={e => setFrame(prev => ({ ...prev, article3Title: e.target.value }))}
-              />
-            </label>
+            <h4 className="popup-section-title">Реквизиты</h4>
             <label className="popup-full-label">
               Реквизиты — лицензиар
               <textarea

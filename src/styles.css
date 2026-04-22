@@ -369,7 +369,7 @@ body {
   font-size: 12px;
 }
 
-.btn-tool { min-width: 28px; padding: 0 8px; cursor: pointer; }
+.btn-tool { min-width: 28px; padding: 0 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .preview-toolbar .btn-ghost,
 .editor-actions .btn-ghost { padding: 0 10px; }
 
@@ -442,6 +442,16 @@ body {
 .docs-paper table { border-collapse: collapse; width: 100%; margin-bottom: 1.5em; font-size: inherit; }
 .docs-paper th, .docs-paper td { border: 1px solid #c8c8cf; padding: 5px 8px; vertical-align: top; }
 .docs-paper th { font-weight: 600; }
+
+/* ── Column layout (borderless table acting as columns) ── */
+.tiptap-editor .ProseMirror table.cols-layout,
+.docs-paper table.cols-layout { border: none; }
+.tiptap-editor .ProseMirror table.cols-layout td,
+.docs-paper table.cols-layout td { border: none; padding: 0 10px; vertical-align: top; }
+.tiptap-editor .ProseMirror table.cols-layout td:first-child,
+.docs-paper table.cols-layout td:first-child { padding-left: 0; }
+.tiptap-editor .ProseMirror table.cols-layout td:last-child,
+.docs-paper table.cols-layout td:last-child { padding-right: 0; }
 
 /* ── Document picker ── */
 .doc-picker-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 0.5px solid #f0f0f2; }
