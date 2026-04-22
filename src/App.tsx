@@ -237,25 +237,26 @@ const AssemblyRow = ({ item, onDelete, onOpenEditor }: { item: SelectedBlock; on
 
 // ── Toolbar SVG icons ────────────────────────────────────────────────────────
 const IcBold = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M4 2v10M4 2h3a2 2 0 0 1 0 4H4m0 0h3.5a2.5 2.5 0 0 1 0 5H4"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M7 5h6a3.5 3.5 0 0 1 0 7h-6l0 -7" />
+    <path d="M13 12h1a3.5 3.5 0 0 1 0 7h-7v-7" />
   </svg>
 );
 const IcItalic = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
-    <path d="M9.5 2h-4M8.5 12h-4M8 2 6 12"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M11 5l6 0" />
+    <path d="M7 19l6 0" />
+    <path d="M14 5l-4 14" />
   </svg>
 );
 const IcAlignLeft = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <rect x="1" y="2"   width="12" height="1.5" rx=".75"/><rect x="1" y="5.5" width="7.5" height="1.5" rx=".75"/>
-    <rect x="1" y="9"   width="12" height="1.5" rx=".75"/><rect x="1" y="12.5" width="7.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 6l16 0" /><path d="M4 12l16 0" /><path d="M4 18l12 0" />
   </svg>
 );
 const IcAlignCenter = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <rect x="1"   y="2"   width="12" height="1.5" rx=".75"/><rect x="3.25" y="5.5" width="7.5" height="1.5" rx=".75"/>
-    <rect x="1"   y="9"   width="12" height="1.5" rx=".75"/><rect x="3.25" y="12.5" width="7.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 6l16 0" /><path d="M8 12l8 0" /><path d="M6 18l12 0" />
   </svg>
 );
 const IcAlignRight = () => (
@@ -265,27 +266,26 @@ const IcAlignRight = () => (
   </svg>
 );
 const IcBulletList = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <circle cx="2" cy="3"  r="1.1"/><circle cx="2" cy="7"  r="1.1"/><circle cx="2" cy="11" r="1.1"/>
-    <rect x="4.5" y="2.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="6.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="10.25" width="8.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M21 6a1 1 0 0 1 -1 1h-10a1 1 0 1 1 0 -2h10a1 1 0 0 1 1 1" />
+    <path d="M21 12a1 1 0 0 1 -1 1h-10a1 1 0 0 1 0 -2h10a1 1 0 0 1 1 1" />
+    <path d="M21 18a1 1 0 0 1 -1 1h-10a1 1 0 0 1 0 -2h10a1 1 0 0 1 1 1" />
+    <path d="M7 5.995v.02c0 1.099 -.895 1.99 -2 1.99s-2 -.891 -2 -1.99v-.02c0 -1.099 .895 -1.99 2 -1.99s2 .891 2 1.99" />
+    <path d="M7 11.995v.02c0 1.099 -.895 1.99 -2 1.99s-2 -.891 -2 -1.99v-.02c0 -1.099 .895 -1.99 2 -1.99s2 .891 2 1.99" />
+    <path d="M7 17.995v.02c0 1.099 -.895 1.99 -2 1.99s-2 -.891 -2 -1.99v-.02c0 -1.099 .895 -1.99 2 -1.99s2 .891 2 1.99" />
   </svg>
 );
 const IcOrderedList = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-    <rect x="1.5" y="1.5" width="1" height="3"   rx=".4"/>
-    <rect x="1"   y="6"   width="2.5" height=".9" rx=".4"/><rect x="2.2" y="6.9" width="1.3" height=".9" rx=".4"/><rect x="1" y="7.8" width="2.5" height=".9" rx=".4"/>
-    <rect x="1"   y="10.5" width="2.5" height=".8" rx=".4"/><rect x="2.2" y="11.3" width="1.3" height=".8" rx=".4"/><rect x="1" y="12.1" width="2.5" height=".8" rx=".4"/>
-    <rect x="4.5" y="2.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="6.25" width="8.5" height="1.5" rx=".75"/>
-    <rect x="4.5" y="10.25" width="8.5" height="1.5" rx=".75"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M11 6h9" /><path d="M11 12h9" /><path d="M12 18h8" />
+    <path d="M4 16a2 2 0 1 1 4 0c0 .591 -.5 1 -1 1.5l-3 2.5h4" />
+    <path d="M6 10v-6l-2 2" />
   </svg>
 );
 const IcTable = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
-    <rect x="1" y="1" width="12" height="12" rx="1.5"/>
-    <path d="M1 5h12M1 9h12M5 1v12M9 1v12"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" />
+    <path d="M3 10h18" /><path d="M10 3v18" />
   </svg>
 );
 const IcAddCol = () => (
@@ -303,10 +303,10 @@ const IcAddRow = () => (
   </svg>
 );
 const IcDelTable = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
-    <rect x="1" y="1" width="12" height="12" rx="1.5"/>
-    <path d="M1 5h12M1 9h12M5 1v12M9 1v12"/>
-    <path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="#c00" strokeWidth="1.4" strokeLinecap="round"/>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M7 3h12a2 2 0 0 1 2 2v12m-.585 3.413a1.994 1.994 0 0 1 -1.415 .587h-14a2 2 0 0 1 -2 -2v-14c0 -.55 .223 -1.05 .583 -1.412" />
+    <path d="M3 10h7m4 0h7" /><path d="M10 3v3m0 4v11" />
+    <path d="M3 3l18 18" />
   </svg>
 );
 const IcCols2 = () => (
@@ -489,7 +489,7 @@ const App = (): JSX.Element => {
   const [showDocPicker, setShowDocPicker] = useState(false);
   const [docIndex, setDocIndex] = useState<DocMeta[]>(loadDocIndex);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
-  const [currentDocName, setCurrentDocName] = useState('Без названия');
+  const [currentDocName, setCurrentDocName] = useState('Новый');
   const [autoSaveStatus, setAutoSaveStatus] = useState('');
   const [fontFamily, setFontFamily] = useState('Times New Roman');
   const [isBold, setIsBold] = useState(false);
@@ -652,7 +652,7 @@ const App = (): JSX.Element => {
     setAvailableBlocks(DEFAULT_MODULE_BLOCKS);
     setSelectedBlocks([]); setFrame(DEFAULT_FRAME);
     setFontFamily('Times New Roman'); setFontSize(11);
-    setCurrentDocId(null); setCurrentDocName('Без названия');
+    setCurrentDocId(null); setCurrentDocName('Новый');
     setOpenTabIds([]); setActiveTab('preview');
   };
 
@@ -660,7 +660,7 @@ const App = (): JSX.Element => {
     if (!window.confirm('Удалить документ?')) return;
     deleteDocFromStorage(id);
     setDocIndex(loadDocIndex());
-    if (currentDocId === id) { setCurrentDocId(null); setCurrentDocName('Без названия'); }
+    if (currentDocId === id) { setCurrentDocId(null); setCurrentDocName('Новый'); }
   };
 
   const requiredVariables = useMemo(() => {
@@ -696,7 +696,6 @@ const App = (): JSX.Element => {
         } else {
           selectedBlocks.forEach(({ block: mod }, si) => {
             const sub = si + 1;
-            lines.push({ text: `${articleNum}.${sub}. ${mod.title}`, type: 'subheading' });
             const paras = mod.paragraphs?.length ? mod.paragraphs : htmlToParagraphs(mod.body);
             paras.forEach((p, j) => {
               lines.push({ text: `${articleNum}.${sub}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
@@ -809,7 +808,18 @@ const App = (): JSX.Element => {
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           />
         </div>
-        <span className="autosave-status">{autoSaveStatus}</span>
+        <div className="topbar-right">
+          <span className="autosave-status">{autoSaveStatus}</span>
+          <div className="export-menu-wrap">
+            <button className="btn-ghost" type="button" onClick={() => setShowExportMenu(v => !v)}>Экспорт ▾</button>
+            {showExportMenu && (
+              <div className="export-menu">
+                <button type="button">Экспорт .docx</button>
+                <button type="button">Экспорт .pdf</button>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
@@ -871,17 +881,7 @@ const App = (): JSX.Element => {
 
             {activeTab === 'preview' && (
               <div className="preview-toolbar">
-                <div className="editor-tools" />
                 <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup(v => !v)}>Переменные</button>
-                <div className="export-menu-wrap">
-                  <button className="btn-ghost" type="button" onClick={() => setShowExportMenu(v => !v)}>Экспорт ▾</button>
-                  {showExportMenu ? (
-                    <div className="export-menu">
-                      <button type="button">Экспорт .docx</button>
-                      <button type="button">Экспорт .pdf</button>
-                    </div>
-                  ) : null}
-                </div>
               </div>
             )}
 
@@ -982,34 +982,6 @@ const App = (): JSX.Element => {
                   <input value={variables[name] ?? ''} onChange={e => setVariables(prev => ({ ...prev, [name]: e.target.value }))} />
                 </label>
               ))}
-            </div>
-
-            <div className="popup-divider" />
-            <h4 className="popup-section-title">Настройки документа</h4>
-            <div className="doc-settings-grid">
-              <label>
-                Шрифт
-                <select value={fontFamily} onChange={e => setFontFamily(e.target.value)}>
-                  <option>Times New Roman</option>
-                  <option>Arial</option>
-                  <option>Helvetica</option>
-                  <option>Georgia</option>
-                </select>
-              </label>
-              <label>
-                Размер
-                <select value={fontSize} onChange={e => setFontSize(Number(e.target.value))}>
-                  <option value={11}>11</option><option value={12}>12</option><option value={13}>13</option>
-                  <option value={14}>14</option><option value={16}>16</option><option value={18}>18</option>
-                </select>
-              </label>
-              <label>
-                Начертание
-                <div className="doc-settings-row">
-                  <button type="button" className={`btn-tool${isBold ? ' active' : ''}`} onClick={() => setIsBold(v => !v)}>B</button>
-                  <button type="button" className={`btn-tool${isItalic ? ' active' : ''}`} onClick={() => setIsItalic(v => !v)}>I</button>
-                </div>
-              </label>
             </div>
 
             <div className="popup-divider" />

@@ -19,8 +19,8 @@ body {
 
 .icloud-topbar {
   height: 48px;
-  display: grid;
-  grid-template-columns: 280px 1fr auto;
+  position: relative;
+  display: flex;
   align-items: center;
   padding: 0 16px 0 0;
   border-bottom: 0.5px solid #e5e5e7;
@@ -31,7 +31,20 @@ body {
 
 .icloud-topbar > * { -webkit-app-region: no-drag; }
 
-.topbar-doc { display: flex; justify-content: center; }
+.topbar-doc {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.topbar-doc .doc-name-input { pointer-events: auto; }
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .doc-name-btn {
   font-size: 13px;
