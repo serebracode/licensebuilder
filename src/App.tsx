@@ -79,8 +79,8 @@ function htmlToParagraphs(html: string): string[] {
   div.innerHTML = html;
   const result: string[] = [];
   div.querySelectorAll('p, li').forEach(el => {
-    const text = el.textContent?.trim();
-    if (text) result.push(text);
+    const text = el.textContent ?? '';
+    if (text.trim()) result.push(text);
   });
   return result;
 }
@@ -166,11 +166,11 @@ const RowMenu = ({ btnRef, actions, onClose }: { btnRef: React.RefObject<HTMLBut
   );
 };
 
-const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
+const FrameRow = ({ block, onOpenEditor, actions, isActive }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions; isActive: boolean }): JSX.Element => {
   const [menuOpen, setMenuOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   return (
-    <div className="block-row" onClick={() => onOpenEditor(block.id)}>
+    <div className={`block-row${isActive ? ' block-row--active' : ''}`} onClick={() => onOpenEditor(block.id)}>
       <div className="block-info">
         <div className="block-name">{block.title}</div>
         <div className="block-desc">{block.description}</div>
@@ -183,14 +183,14 @@ const FrameRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpe
   );
 };
 
-const AvailableRow = ({ block, onOpenEditor, actions }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions }): JSX.Element => {
+const AvailableRow = ({ block, onOpenEditor, actions, isActive }: { block: LicenseBlock; onOpenEditor: (id: string) => void; actions: RowActions; isActive: boolean }): JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `available:${block.id}` });
   const [menuOpen, setMenuOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   return (
     <div
       ref={setNodeRef}
-      className="block-row"
+      className={`block-row${isActive ? ' block-row--active' : ''}`}
       style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }}
       onClick={() => onOpenEditor(block.id)}
     >
@@ -309,6 +309,11 @@ const IcDelTable = () => (
     <path d="M3 3l18 18" />
   </svg>
 );
+const IcCols1 = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+    <rect x="2" y="2" width="10" height="10" rx="1"/>
+  </svg>
+);
 const IcCols2 = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
     <rect x="1"   y="2" width="5.5" height="10" rx="1"/>
@@ -353,18 +358,13 @@ const TableWithClass = Table.configure({ resizable: false }).extend({
 function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   block: LicenseBlock; onSave: (updated: LicenseBlock) => void; fontFamily: string; fontSize: number;
 }): JSX.Element {
-  const [title, setTitle] = useState(block.title);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Mutable refs so cleanup closure always sees latest values
   const isDirtyRef = useRef(false);
-  const titleRef = useRef(title);
   const blockRef = useRef(block);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
   blockRef.current = block;
-
-  useEffect(() => { titleRef.current = title; }, [title]);
 
   const editor = useEditor({
     extensions: [
@@ -384,14 +384,12 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   const editorRef = useRef(editor);
   useEffect(() => { editorRef.current = editor; }, [editor]);
 
-  // Save on unmount if there are unsaved changes
   useEffect(() => {
     return () => {
       if (isDirtyRef.current && editorRef.current) {
         const html = editorRef.current.getHTML();
         onSaveRef.current({
           ...blockRef.current,
-          title: titleRef.current,
           body: html,
           paragraphs: htmlToParagraphs(html),
         });
@@ -402,15 +400,9 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   const handleApply = () => {
     if (!editor) return;
     const html = editor.getHTML();
-    onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
+    onSave({ ...block, body: html, paragraphs: htmlToParagraphs(html) });
     setIsDirty(false);
     isDirtyRef.current = false;
-  };
-
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTitle(e.target.value);
-    setIsDirty(true);
-    isDirtyRef.current = true;
   };
 
   const insertColLayout = (cols: number) => {
@@ -430,28 +422,22 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   return (
     <>
       <div className="block-editor-toolbar">
-        <input
-          className="block-editor__title-input"
-          value={title}
-          onChange={handleTitleChange}
-          placeholder="Название блока"
-        />
         <div className="editor-tools">
-          {T(!!editor?.isActive('bold'),   () => editor?.chain().focus().toggleBold().run(),       'Жирный',           IcBold)}
-          {T(!!editor?.isActive('italic'), () => editor?.chain().focus().toggleItalic().run(),     'Курсив',           IcItalic)}
+          {T(!!editor?.isActive('bold'),   () => editor?.chain().focus().toggleBold().run(),       'Жирный',     IcBold)}
+          {T(!!editor?.isActive('italic'), () => editor?.chain().focus().toggleItalic().run(),     'Курсив',     IcItalic)}
           <div className="format-separator" />
           {T(!!editor?.isActive({ textAlign: 'left' }),   () => editor?.chain().focus().setTextAlign('left').run(),   'По левому краю', IcAlignLeft)}
           {T(!!editor?.isActive({ textAlign: 'center' }), () => editor?.chain().focus().setTextAlign('center').run(), 'По центру',      IcAlignCenter)}
-          {T(!!editor?.isActive({ textAlign: 'right' }),  () => editor?.chain().focus().setTextAlign('right').run(),  'По правому краю', IcAlignRight)}
           <div className="format-separator" />
-          {T(!!editor?.isActive('bulletList'),  () => editor?.chain().focus().toggleBulletList().run(),  'Маркированный список',  IcBulletList)}
-          {T(!!editor?.isActive('orderedList'), () => editor?.chain().focus().toggleOrderedList().run(), 'Нумерованный список',   IcOrderedList)}
+          {T(!!editor?.isActive('bulletList'),  () => editor?.chain().focus().toggleBulletList().run(),  'Маркированный список', IcBulletList)}
+          {T(!!editor?.isActive('orderedList'), () => editor?.chain().focus().toggleOrderedList().run(), 'Нумерованный список',  IcOrderedList)}
           <div className="format-separator" />
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }} title="Вставить таблицу"><IcTable /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addColumnAfter().run(); }} title="Добавить столбец"><IcAddCol /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().addRowAfter().run(); }} title="Добавить строку"><IcAddRow /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().deleteTable().run(); }} title="Удалить таблицу"><IcDelTable /></button>
           <div className="format-separator" />
+          <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(1); }} title="1 колонка"><IcCols1 /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(2); }} title="2 колонки"><IcCols2 /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(3); }} title="3 колонки"><IcCols3 /></button>
         </div>
@@ -481,8 +467,6 @@ const App = (): JSX.Element => {
   const [leftTab, setLeftTab] = useState<'frame' | 'assembly'>('frame');
   const [activeTab, setActiveTab] = useState<'preview' | string>('preview');
   const [openTabIds, setOpenTabIds] = useState<string[]>([]);
-  const [variables, setVariables] = useState<Record<string, string>>({ company_name: '', contract_date: '' });
-  const [showVarsPopup, setShowVarsPopup] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -663,12 +647,6 @@ const App = (): JSX.Element => {
     if (currentDocId === id) { setCurrentDocId(null); setCurrentDocName('Новый'); }
   };
 
-  const requiredVariables = useMemo(() => {
-    const vars = new Set<string>(['company_name', 'contract_date']);
-    selectedBlocks.forEach(({ block }) => block.variables.forEach(name => vars.add(name)));
-    return [...vars];
-  }, [selectedBlocks]);
-
   const previewLines = useMemo((): PreviewLine[] => {
     const lines: PreviewLine[] = [];
     let articleNum = 0;
@@ -678,19 +656,19 @@ const App = (): JSX.Element => {
 
       if (btype === 'title') {
         const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
-        paras.forEach(p => { if (p.trim()) lines.push({ text: replaceVars(p.trim(), variables), type: 'heading' }); });
+        paras.forEach(p => { if (p.trim()) lines.push({ text: p, type: 'heading' }); });
         continue;
       }
 
       if (btype === 'preamble') {
         const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
-        paras.forEach(p => { if (p.trim()) lines.push({ text: replaceVars(p.trim(), variables), type: 'text' }); });
+        paras.forEach(p => { if (p.trim()) lines.push({ text: p, type: 'text' }); });
         continue;
       }
 
       if (btype === 'modules') {
         articleNum++;
-        lines.push({ text: `${articleNum}. ${replaceVars(block.title, variables)}`, type: 'heading' });
+        lines.push({ text: `${articleNum}. ${block.title}`, type: 'heading' });
         if (selectedBlocks.length === 0) {
           lines.push({ text: '(добавьте модули в сборку)', type: 'para' });
         } else {
@@ -698,7 +676,7 @@ const App = (): JSX.Element => {
             const sub = si + 1;
             const paras = mod.paragraphs?.length ? mod.paragraphs : htmlToParagraphs(mod.body);
             paras.forEach((p, j) => {
-              lines.push({ text: `${articleNum}.${sub}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
+              lines.push({ text: `${articleNum}.${sub}.${j + 1}. ${p}`, type: 'para' });
             });
           });
         }
@@ -710,12 +688,12 @@ const App = (): JSX.Element => {
       lines.push({ text: `${articleNum}. ${block.title}`, type: 'heading' });
       const paras = block.paragraphs?.length ? block.paragraphs : htmlToParagraphs(block.body);
       paras.forEach((p, j) => {
-        lines.push({ text: `${articleNum}.${j + 1}. ${replaceVars(p, variables)}`, type: 'para' });
+        lines.push({ text: `${articleNum}.${j + 1}. ${p}`, type: 'para' });
       });
     }
 
     return lines;
-  }, [frameBlocks, selectedBlocks, variables]);
+  }, [frameBlocks, selectedBlocks]);
 
   // Measure actual rendered heights and split into A4 pages
   const A4_CONTENT_H = 1123 - 38 - 50; // content height: A4 minus top(38) and bottom(50) padding
@@ -836,7 +814,7 @@ const App = (): JSX.Element => {
                   <span className="section-label">Статьи рамки</span>
                   <button type="button" className="btn-add" onClick={addFrameBlock}>+ Добавить</button>
                 </div>
-                {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} actions={{ onRename: () => renameBlock(block.id, true), onDuplicate: () => duplicateBlock(block.id, true), onDelete: () => deleteBlock(block.id, true) }} />)}
+                {frameBlocks.map(block => <FrameRow key={block.id} block={block} onOpenEditor={openBlockEditor} isActive={activeTab === block.id} actions={{ onRename: () => renameBlock(block.id, true), onDuplicate: () => duplicateBlock(block.id, true), onDelete: () => deleteBlock(block.id, true) }} />)}
               </div>
             )}
 
@@ -847,7 +825,7 @@ const App = (): JSX.Element => {
                     <span className="section-label">Модули</span>
                     <button type="button" className="btn-add" onClick={addModuleBlock}>+ Добавить</button>
                   </div>
-                  {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} actions={{ onRename: () => renameBlock(block.id, false), onDuplicate: () => duplicateBlock(block.id, false), onDelete: () => deleteBlock(block.id, false) }} />)}
+                  {availableBlocks.map(block => <AvailableRow key={block.id} block={block} onOpenEditor={openBlockEditor} isActive={activeTab === block.id} actions={{ onRename: () => renameBlock(block.id, false), onDuplicate: () => duplicateBlock(block.id, false), onDelete: () => deleteBlock(block.id, false) }} />)}
                 </div>
                 <div className="h-divider" />
                 <div className="section-label">Сборка</div>
@@ -879,11 +857,6 @@ const App = (): JSX.Element => {
               })}
             </div>
 
-            {activeTab === 'preview' && (
-              <div className="preview-toolbar">
-                <button className="btn-ghost" type="button" onClick={() => setShowVarsPopup(v => !v)}>Переменные</button>
-              </div>
-            )}
 
             {openTabIds.map(id => {
               const b = findBlock(id);
@@ -950,8 +923,8 @@ const App = (): JSX.Element => {
               {/* Requisites sheet */}
               <article className="docs-paper docs-paper--reqs" style={paperStyle}>
                 <div className="reqs-columns">
-                  <div className="reqs-col">{replaceVars(frame.reqLeft, variables)}</div>
-                  <div className="reqs-col">{replaceVars(frame.reqRight, variables)}</div>
+                  <div className="reqs-col">{frame.reqLeft}</div>
+                  <div className="reqs-col">{frame.reqRight}</div>
                 </div>
               </article>
             </div>
@@ -970,47 +943,6 @@ const App = (): JSX.Element => {
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {showVarsPopup ? (
-        <div className="popup-backdrop" onClick={() => setShowVarsPopup(false)}>
-          <div className="popup" onClick={e => e.stopPropagation()}>
-            <h3>Переменные договора</h3>
-            <div className="popup-grid">
-              {requiredVariables.map(name => (
-                <label key={name}>
-                  {name}
-                  <input value={variables[name] ?? ''} onChange={e => setVariables(prev => ({ ...prev, [name]: e.target.value }))} />
-                </label>
-              ))}
-            </div>
-
-            <div className="popup-divider" />
-            <h4 className="popup-section-title">Реквизиты</h4>
-            <label className="popup-full-label">
-              Реквизиты — лицензиар
-              <textarea
-                className="popup-textarea"
-                value={frame.reqLeft}
-                onChange={e => setFrame(prev => ({ ...prev, reqLeft: e.target.value }))}
-                rows={5}
-              />
-            </label>
-            <label className="popup-full-label">
-              Реквизиты — лицензиат
-              <textarea
-                className="popup-textarea"
-                value={frame.reqRight}
-                onChange={e => setFrame(prev => ({ ...prev, reqRight: e.target.value }))}
-                rows={5}
-              />
-            </label>
-
-            <div className="popup-actions">
-              <button className="btn-primary" type="button" onClick={() => setShowVarsPopup(false)}>Готово</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {showDocPicker && (
         <div className="popup-backdrop" onClick={() => setShowDocPicker(false)}>
