@@ -356,6 +356,20 @@ body {
   justify-content: flex-end;
 }
 
+.btn-apply {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: #2563eb;
+  white-space: nowrap;
+}
+.btn-apply:hover { background: #1d4ed8; }
+
 /* ── Shared toolbar button styles ── */
 
 .btn-tool,

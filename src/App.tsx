@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import { Extension } from '@tiptap/core';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -322,6 +323,19 @@ const IcCols3 = () => (
   </svg>
 );
 
+// Tab key inserts «красная строка» (two em spaces) when outside a list
+const TabIndent = Extension.create({
+  name: 'tabIndent',
+  addKeyboardShortcuts() {
+    return {
+      Tab: ({ editor }) => {
+        if (editor.isActive('listItem')) return false;
+        return editor.commands.insertContent('  ');
+      },
+    };
+  },
+});
+
 // Table extension that preserves class attribute (needed for cols-layout)
 const TableWithClass = Table.configure({ resizable: false }).extend({
   addAttributes() {
@@ -340,6 +354,17 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
   block: LicenseBlock; onSave: (updated: LicenseBlock) => void; fontFamily: string; fontSize: number;
 }): JSX.Element {
   const [title, setTitle] = useState(block.title);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Mutable refs so cleanup closure always sees latest values
+  const isDirtyRef = useRef(false);
+  const titleRef = useRef(title);
+  const blockRef = useRef(block);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  blockRef.current = block;
+
+  useEffect(() => { titleRef.current = title; }, [title]);
 
   const editor = useEditor({
     extensions: [
@@ -347,30 +372,45 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
       TextAlign.configure({ types: ['paragraph', 'heading'] }),
       TableWithClass,
       TableRow, TableHeader, TableCell,
+      TabIndent,
     ],
     content: bodyToHtml(block),
+    onUpdate: () => {
+      setIsDirty(true);
+      isDirtyRef.current = true;
+    },
   });
 
-  // Autosave content 1.5s after last change
-  useEffect(() => {
-    if (!editor) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const handler = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const html = editor.getHTML();
-        onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
-      }, 1500);
-    };
-    editor.on('update', handler);
-    return () => { editor.off('update', handler); clearTimeout(timer); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, title]);
+  const editorRef = useRef(editor);
+  useEffect(() => { editorRef.current = editor; }, [editor]);
 
-  const handleTitleBlur = () => {
+  // Save on unmount if there are unsaved changes
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current && editorRef.current) {
+        const html = editorRef.current.getHTML();
+        onSaveRef.current({
+          ...blockRef.current,
+          title: titleRef.current,
+          body: html,
+          paragraphs: htmlToParagraphs(html),
+        });
+      }
+    };
+  }, []);
+
+  const handleApply = () => {
     if (!editor) return;
     const html = editor.getHTML();
     onSave({ ...block, title, body: html, paragraphs: htmlToParagraphs(html) });
+    setIsDirty(false);
+    isDirtyRef.current = false;
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+    setIsDirty(true);
+    isDirtyRef.current = true;
   };
 
   const insertColLayout = (cols: number) => {
@@ -393,8 +433,7 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
         <input
           className="block-editor__title-input"
           value={title}
-          onChange={e => setTitle(e.target.value)}
-          onBlur={handleTitleBlur}
+          onChange={handleTitleChange}
           placeholder="Название блока"
         />
         <div className="editor-tools">
@@ -416,7 +455,11 @@ function BlockEditor({ block, onSave, fontFamily, fontSize }: {
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(2); }} title="2 колонки"><IcCols2 /></button>
           <button type="button" className="btn-tool" onMouseDown={e => { e.preventDefault(); insertColLayout(3); }} title="3 колонки"><IcCols3 /></button>
         </div>
-        <div className="editor-actions" />
+        <div className="editor-actions">
+          {isDirty && (
+            <button type="button" className="btn-apply" onClick={handleApply}>Применить</button>
+          )}
+        </div>
       </div>
 
       <div className="block-editor-canvas">
