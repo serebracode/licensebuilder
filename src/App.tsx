@@ -43,26 +43,47 @@ type AppDoc = {
 };
 type DocMeta = { id: string; name: string; updatedAt: number };
 
+// ── Storage abstraction (Electron = files, web = localStorage) ────────────────
+type ElectronBridge = {
+  platform?: string;
+  onMenu?: (channel: string, fn: () => void) => () => void;
+  selectDirectory?: () => Promise<string | null>;
+  getSettings?: () => Promise<Record<string, string>>;
+  docSave?: (doc: AppDoc) => Promise<void>;
+  docLoad?: (id: string) => Promise<AppDoc | null>;
+  docList?: () => Promise<DocMeta[]>;
+  docDelete?: (id: string) => Promise<void>;
+};
+const lb = (window as Window & { licenseBuilder?: ElectronBridge }).licenseBuilder;
+const IS_ELECTRON = typeof lb?.docSave === 'function';
+
 const DOC_INDEX_KEY = 'lb_doc_index_v1';
 const docKey = (id: string) => `lb_doc_${id}_v1`;
-
-function loadDocIndex(): DocMeta[] {
+function _lsLoadIndex(): DocMeta[] {
   try { return JSON.parse(localStorage.getItem(DOC_INDEX_KEY) ?? '[]'); } catch { return []; }
 }
-function saveDocToStorage(doc: AppDoc): void {
+
+async function storageSaveDoc(doc: AppDoc): Promise<void> {
+  if (IS_ELECTRON) { await lb!.docSave!(doc); return; }
   localStorage.setItem(docKey(doc.id), JSON.stringify(doc));
-  const idx = loadDocIndex();
+  const idx = _lsLoadIndex();
   const entry: DocMeta = { id: doc.id, name: doc.name, updatedAt: doc.updatedAt };
   const i = idx.findIndex(d => d.id === doc.id);
   if (i >= 0) idx[i] = entry; else idx.push(entry);
   localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(idx));
 }
-function loadDocFromStorage(id: string): AppDoc | null {
+async function storageLoadDoc(id: string): Promise<AppDoc | null> {
+  if (IS_ELECTRON) return lb!.docLoad!(id);
   try { return JSON.parse(localStorage.getItem(docKey(id)) ?? 'null'); } catch { return null; }
 }
-function deleteDocFromStorage(id: string): void {
+async function storageListDocs(): Promise<DocMeta[]> {
+  if (IS_ELECTRON) return lb!.docList!();
+  return _lsLoadIndex();
+}
+async function storageDeleteDoc(id: string): Promise<void> {
+  if (IS_ELECTRON) { await lb!.docDelete!(id); return; }
   localStorage.removeItem(docKey(id));
-  localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(loadDocIndex().filter(d => d.id !== id)));
+  localStorage.setItem(DOC_INDEX_KEY, JSON.stringify(_lsLoadIndex().filter(d => d.id !== id)));
 }
 
 const DEFAULT_FRAME: DocFrame = {
@@ -471,7 +492,7 @@ const App = (): JSX.Element => {
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
-  const [docIndex, setDocIndex] = useState<DocMeta[]>(loadDocIndex);
+  const [docIndex, setDocIndex] = useState<DocMeta[]>([]);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
   const [currentDocName, setCurrentDocName] = useState('Новый');
   const [autoSaveStatus, setAutoSaveStatus] = useState('');
@@ -484,17 +505,19 @@ const App = (): JSX.Element => {
     reqRight: FRAME_DEFAULTS.reqRight,
   });
 
+  // Load doc index on mount
+  useEffect(() => { storageListDocs().then(setDocIndex); }, []);
+
   // Autosave document 2s after any state change
   useEffect(() => {
     setAutoSaveStatus('Сохраняется...');
-    const t = setTimeout(() => saveCurrentDoc(), 2000);
+    const t = setTimeout(() => { void saveCurrentDoc(); }, 2000);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameBlocks, availableBlocks, selectedBlocks, frame, fontFamily, fontSize]);
 
   // Wire Electron native menu → renderer actions
   useEffect(() => {
-    const lb = (window as typeof window & { licenseBuilder?: typeof window.licenseBuilder }).licenseBuilder;
     if (!lb?.onMenu) return;
     const offs = [
       lb.onMenu('menu:new', () => newDocument()),
@@ -608,7 +631,7 @@ const App = (): JSX.Element => {
     setOpenTabIds([]); setActiveTab('preview');
   };
 
-  const saveCurrentDoc = useCallback((nameOverride?: string) => {
+  const saveCurrentDoc = useCallback(async (nameOverride?: string) => {
     const name = nameOverride ?? currentDocName;
     const id = currentDocId ?? `doc-${Date.now()}`;
     const doc: AppDoc = {
@@ -617,16 +640,16 @@ const App = (): JSX.Element => {
       assembledModules: selectedBlocks.map(s => ({ instanceId: s.instanceId, blockId: s.block.id })),
       frame, fontFamily, fontSize,
     };
-    saveDocToStorage(doc);
+    await storageSaveDoc(doc);
     setCurrentDocId(id);
-    setDocIndex(loadDocIndex());
+    storageListDocs().then(setDocIndex);
     setAutoSaveStatus('Сохранено');
     setTimeout(() => setAutoSaveStatus(''), 2000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDocId, currentDocName, frameBlocks, availableBlocks, selectedBlocks, frame, fontFamily, fontSize]);
 
-  const openDocById = (id: string) => {
-    const doc = loadDocFromStorage(id);
+  const openDocById = async (id: string) => {
+    const doc = await storageLoadDoc(id);
     if (doc) { applyDoc(doc); setShowDocPicker(false); }
   };
 
@@ -640,10 +663,10 @@ const App = (): JSX.Element => {
     setOpenTabIds([]); setActiveTab('preview');
   };
 
-  const deleteDocById = (id: string) => {
+  const deleteDocById = async (id: string) => {
     if (!window.confirm('Удалить документ?')) return;
-    deleteDocFromStorage(id);
-    setDocIndex(loadDocIndex());
+    await storageDeleteDoc(id);
+    storageListDocs().then(setDocIndex);
     if (currentDocId === id) { setCurrentDocId(null); setCurrentDocName('Новый'); }
   };
 
