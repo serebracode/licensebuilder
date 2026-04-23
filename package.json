@@ -26,13 +26,19 @@
     "appId": "com.serebryakov.license-constructor",
     "productName": "LicenseConstructor",
     "copyright": "Copyright © 2025 Serebryakov Denis",
+    "compression": "maximum",
+    "asar": true,
     "directories": {
       "output": "release",
       "buildResources": "build"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!**/*.map",
+      "!**/{test,tests,__tests__,example,examples}/**",
+      "!**/*.{md,markdown}",
+      "!**/{CHANGELOG,CHANGES,README,readme,AUTHORS,CONTRIBUTING}*"
     ],
     "mac": {
       "category": "public.app-category.business",
@@ -41,8 +47,7 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         }
       ]
@@ -84,17 +89,14 @@
     "@tiptap/extension-table-header": "^3.22.4",
     "@tiptap/extension-table-row": "^3.22.4",
     "@tiptap/extension-text-align": "^3.22.4",
-    "@tiptap/pm": "^3.22.4",
     "@tiptap/react": "^3.22.4",
     "@tiptap/starter-kit": "^3.22.4",
     "docx": "^9.5.1",
     "electron-store": "^10.1.0",
-    "jszip": "^3.10.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/jszip": "^3.4.0",
     "@types/node": "^24.5.2",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",

@@ -8,5 +8,22 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          tiptap: [
+            '@tiptap/react',
+            '@tiptap/starter-kit',
+            '@tiptap/extension-table',
+            '@tiptap/extension-table-row',
+            '@tiptap/extension-table-header',
+            '@tiptap/extension-table-cell',
+            '@tiptap/extension-text-align',
+            '@tiptap/core',
+          ],
+          dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+        },
+      },
+    },
   },
 });

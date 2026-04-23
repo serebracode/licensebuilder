@@ -829,6 +829,7 @@ const App = (): JSX.Element => {
 
   const exportDocx = async (): Promise<void> => {
     try {
+      const { Document, Packer, Paragraph, TextRun } = await import('docx');
       const lines = buildExportLines();
       const doc = new Document({
         sections: [
