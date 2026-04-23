@@ -60,7 +60,11 @@ const buildMenu = (win: BrowserWindow): void => {
 // ── Document file storage ─────────────────────────────────────────────────────
 
 const getProjectsDir = async (): Promise<string> => {
-  const dir = path.join(app.getPath('userData'), 'projects');
+  const workspacePath = settingsStore.get('workspacePath') as string | undefined;
+  const baseDir = workspacePath && workspacePath.trim().length > 0
+    ? workspacePath
+    : app.getPath('userData');
+  const dir = path.join(baseDir, 'projects');
   await fs.mkdir(dir, { recursive: true });
   return dir;
 };
@@ -107,6 +111,12 @@ app.whenReady().then(() => {
     workspacePath: settingsStore.get('workspacePath'),
   }));
 
+  ipcMain.handle('settings:set-workspace-path', async (_e, workspacePath: string) => {
+    settingsStore.set('workspacePath', workspacePath);
+    await getProjectsDir();
+    return { workspacePath: settingsStore.get('workspacePath') };
+  });
+
   ipcMain.handle('dialog:select-directory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
     return result.canceled ? null : result.filePaths[0] ?? null;
@@ -123,4 +133,3 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-

@@ -5,8 +5,8 @@ declare global {
     licenseBuilder: {
       platform: string;
       getSettings: () => Promise<Record<string, string>>;
+      setWorkspacePath: (workspacePath: string) => Promise<{ workspacePath?: string }>;
       selectDirectory: () => Promise<string | null>;
-      initWorkspace: (payload: { basePath: string; mode: 'create' | 'useExisting' }) => Promise<Record<string, string>>;
       onMenu: (channel: string, fn: () => void) => () => void;
     };
   }
