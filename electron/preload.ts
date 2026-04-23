@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('licenseBuilder', {
   // ── Native dialogs ───────────────────────────────────────────────────────
   selectDirectory: () => ipcRenderer.invoke('dialog:select-directory') as Promise<string | null>,
   getSettings:     () => ipcRenderer.invoke('settings:get'),
+  setWorkspacePath: (workspacePath: string) =>
+    ipcRenderer.invoke('settings:set-workspace-path', workspacePath) as Promise<{ workspacePath?: string }>,
 
   // ── Native menu events ───────────────────────────────────────────────────
   onMenu: (channel: string, fn: () => void) => {
