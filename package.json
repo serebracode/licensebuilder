@@ -32,8 +32,7 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*",
-      "!node_modules"
+      "dist-electron/**/*"
     ],
     "mac": {
       "category": "public.app-category.business",
