@@ -29,7 +29,6 @@ import {
   DEFAULT_FRAME_BLOCKS, DEFAULT_MODULE_BLOCKS,
   FRAME_DEFAULTS, type LicenseBlock
 } from './data.test-blocks';
-import { parseDocx } from './docx-parser';
 
 type SelectedBlock = { instanceId: string; block: LicenseBlock };
 type PreviewLine = { text: string; type: 'heading' | 'subheading' | 'para' | 'text' };
