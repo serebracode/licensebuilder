@@ -17,6 +17,7 @@
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
+    "verify:setup": "node scripts/verify-setup.mjs",
     "typecheck": "tsc --noEmit",
     "dev:web": "vite",
     "build:web": "vite build"
