@@ -29,7 +29,6 @@ import {
   DEFAULT_FRAME_BLOCKS, DEFAULT_MODULE_BLOCKS,
   FRAME_DEFAULTS, type LicenseBlock
 } from './data.test-blocks';
-import { parseDocx } from './docx-parser';
 
 type SelectedBlock = { instanceId: string; block: LicenseBlock };
 type PreviewLine = { text: string; type: 'heading' | 'subheading' | 'para' | 'text' };
@@ -49,6 +48,7 @@ type ElectronBridge = {
   onMenu?: (channel: string, fn: () => void) => () => void;
   selectDirectory?: () => Promise<string | null>;
   getSettings?: () => Promise<Record<string, string>>;
+  setWorkspacePath?: (workspacePath: string) => Promise<{ workspacePath?: string }>;
   docSave?: (doc: AppDoc) => Promise<void>;
   docLoad?: (id: string) => Promise<AppDoc | null>;
   docList?: () => Promise<DocMeta[]>;
@@ -91,9 +91,6 @@ const DEFAULT_FRAME: DocFrame = {
   reqRight: FRAME_DEFAULTS.reqRight,
 };
 
-const replaceVars = (text: string, values: Record<string, string>): string =>
-  text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, name: string) => values[name] || `{{${name}}}`);
-
 function htmlToParagraphs(html: string): string[] {
   if (!html.trim().startsWith('<')) return html.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
   const div = document.createElement('div');
@@ -111,6 +108,17 @@ function bodyToHtml(block: LicenseBlock): string {
   if (block.paragraphs?.length) return '<p>' + block.paragraphs.map(p => p.trim()).join('</p><p>') + '</p>';
   const paras = block.body.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
   return paras.length ? '<p>' + paras.join('</p><p>') + '</p>' : '<p>' + block.body + '</p>';
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
 }
 
 const DragDots = (): JSX.Element => (
@@ -489,9 +497,9 @@ const App = (): JSX.Element => {
   const [activeTab, setActiveTab] = useState<'preview' | string>('preview');
   const [openTabIds, setOpenTabIds] = useState<string[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showFileMenu, setShowFileMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
+  const [workspacePath, setWorkspacePath] = useState('');
   const [docIndex, setDocIndex] = useState<DocMeta[]>([]);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
   const [currentDocName, setCurrentDocName] = useState('Новый');
@@ -507,6 +515,13 @@ const App = (): JSX.Element => {
 
   // Load doc index on mount
   useEffect(() => { storageListDocs().then(setDocIndex); }, []);
+
+  useEffect(() => {
+    if (!lb?.getSettings) return;
+    lb.getSettings()
+      .then(settings => setWorkspacePath(settings.workspacePath ?? ''))
+      .catch(() => setWorkspacePath(''));
+  }, []);
 
   // Autosave document 2s after any state change
   useEffect(() => {
@@ -796,6 +811,48 @@ const App = (): JSX.Element => {
 
   const isMac = (window as typeof window & { licenseBuilder?: { platform?: string } }).licenseBuilder?.platform === 'darwin';
 
+  const buildExportLines = (): string[] => {
+    const lines: string[] = [];
+    const allPages = pagedLines ?? [previewLines];
+    allPages.forEach((page, pageIndex) => {
+      page.forEach(line => lines.push(line.text));
+      if (pageIndex < allPages.length - 1) lines.push('');
+    });
+    lines.push('');
+    lines.push('РЕКВИЗИТЫ');
+    lines.push(frame.reqLeft);
+    lines.push('');
+    lines.push(frame.reqRight);
+    return lines;
+  };
+
+  const exportDocx = async (): Promise<void> => {
+    try {
+      const { Document, Packer, Paragraph, TextRun } = await import('docx');
+      const lines = buildExportLines();
+      const doc = new Document({
+        sections: [
+          {
+            children: lines.map(text => new Paragraph({
+              children: [new TextRun(text)],
+            })),
+          },
+        ],
+      });
+      const blob = await Packer.toBlob(doc);
+      const safeName = currentDocName.trim() || 'document';
+      downloadBlob(blob, `${safeName}.docx`);
+      setShowExportMenu(false);
+    } catch {
+      alert('Не удалось экспортировать .docx');
+    }
+  };
+
+  const exportPdf = (): void => {
+    window.print();
+    setShowExportMenu(false);
+  };
+
   return (
     <main className={`icloud-page${isMac ? ' icloud-page--mac' : ''}`}>
       <header className="icloud-topbar">
@@ -815,8 +872,8 @@ const App = (): JSX.Element => {
             <button className="btn-ghost" type="button" onClick={() => setShowExportMenu(v => !v)}>Экспорт ▾</button>
             {showExportMenu && (
               <div className="export-menu">
-                <button type="button">Экспорт .docx</button>
-                <button type="button">Экспорт .pdf</button>
+                <button type="button" onClick={() => { void exportDocx(); }}>Экспорт .docx</button>
+                <button type="button" onClick={exportPdf}>Экспорт .pdf</button>
               </div>
             )}
           </div>
@@ -1002,13 +1059,24 @@ const App = (): JSX.Element => {
                 style={{ flex: 1, border: '0.5px solid #d8d8dd', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}
                 placeholder="Путь к рабочей папке"
                 readOnly
-                value={typeof window !== 'undefined' && (window as typeof window & { licenseBuilder?: { platform?: string } }).licenseBuilder?.platform ? '(выбрать через кнопку)' : 'localStorage (веб-режим)'}
+                value={
+                  workspacePath
+                  || (typeof window !== 'undefined' && (window as typeof window & { licenseBuilder?: { platform?: string } }).licenseBuilder?.platform
+                    ? '(не выбрана)'
+                    : 'localStorage (веб-режим)')
+                }
               />
               <button type="button" className="btn-ghost" onClick={async () => {
-                const w = (window as typeof window & { licenseBuilder?: { selectDirectory?: () => Promise<string | null> } }).licenseBuilder;
+                const w = (window as typeof window & { licenseBuilder?: { selectDirectory?: () => Promise<string | null>; setWorkspacePath?: (workspacePath: string) => Promise<{ workspacePath?: string }> } }).licenseBuilder;
                 if (!w?.selectDirectory) { alert('Недоступно в веб-режиме'); return; }
                 const p = await w.selectDirectory();
-                if (p) alert(`Папка выбрана: ${p}`);
+                if (!p) return;
+                if (w.setWorkspacePath) {
+                  const settings = await w.setWorkspacePath(p);
+                  setWorkspacePath(settings.workspacePath ?? p);
+                } else {
+                  setWorkspacePath(p);
+                }
               }}>Выбрать...</button>
             </div>
             <div className="popup-actions" style={{ marginTop: 16 }}>
